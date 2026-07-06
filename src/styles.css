@@ -57,6 +57,22 @@
 .file-button.disabled{opacity:.55;pointer-events:none}
 
 
+.topbar-filter{white-space:nowrap;padding:9px 12px}
+.topbar-filter.active{border-color:var(--green);color:var(--green);background:var(--green-2)}
+.people-filter-bar{display:grid;grid-template-columns:minmax(180px,1fr) 170px 170px auto;gap:12px;align-items:end;padding:14px 34px;background:var(--surface);border-bottom:1px solid var(--line)}
+.people-filter-bar label{display:grid;gap:6px;font-size:11px;font-weight:700;color:var(--muted)}
+.people-filter-bar select,.people-filter-bar input{height:40px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fff;color:var(--text);outline:0}
+.people-filter-bar select:focus,.people-filter-bar input:focus{border-color:var(--green);box-shadow:0 0 0 3px var(--green-2)}
+.people-filter-bar .secondary:disabled{opacity:.5;cursor:not-allowed}
+.people-search-panel{overflow:hidden}
+.people-search-head,.people-search-row{display:grid;grid-template-columns:1.5fr .9fr 1fr .7fr 20px;gap:14px;align-items:center}
+.people-search-head{padding:12px 20px;color:var(--muted);font-size:11px;font-weight:600;border-bottom:1px solid var(--line)}
+.people-search-row{width:100%;border:0;border-top:1px solid var(--line);background:var(--surface);padding:14px 20px;text-align:left;font-size:13px;cursor:pointer}
+.people-search-row:first-of-type{border-top:0}
+.people-search-row:hover{background:var(--canvas)}
+@media(max-width:1050px){.people-filter-bar{grid-template-columns:1fr 1fr 1fr auto}.people-search-head,.people-search-row{grid-template-columns:1.4fr .8fr 1fr .7fr 20px}}
+@media(max-width:720px){.topbar-filter span{display:none}.people-filter-bar{grid-template-columns:1fr;padding:14px 16px}.people-filter-bar .secondary{width:100%}.people-search-head{display:none}.people-search-row{grid-template-columns:1fr auto}.people-search-row>span:nth-child(2),.people-search-row>span:nth-child(3){display:none}.people-search-row>span:nth-child(4){grid-column:1}.people-search-row>svg{grid-column:2;grid-row:1}}
+
 .calendar-metrics{margin-bottom:16px}
 .calendar-toolbar{margin-bottom:16px;padding:18px 20px}
 .calendar-controls{display:grid;grid-template-columns:minmax(220px,1fr) 160px auto auto;gap:10px;align-items:end}

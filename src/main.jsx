@@ -587,7 +587,7 @@ function EmployeeForm({ groups, actor, onSave, onClose }) {
   </form>;
 }
 
-function Overview({ people, onOpenRecruitment }) {
+function Overview({ people, onOpenRecruitment, onOpenFilters }) {
   // Översikten visar en snabb bild av organisationen och pågående rekryteringar.
   const active = people.filter(person => person.status === 'Anställd');
   const candidates = people.filter(person => person.status === 'Rekrytering');
@@ -601,7 +601,7 @@ function Overview({ people, onOpenRecruitment }) {
       <div className="urgent"><CalendarDays/><span><b>{deadlines.length}</b>Provanställning inom 60 dagar</span></div>
     </div>
     <div className="dashboard-grid">
-      <section className="panel recruitment"><div className="panel-head"><h2>Pågående rekryteringar</h2><button className="secondary small"><SlidersHorizontal size={16}/>Filter</button></div>
+      <section className="panel recruitment"><div className="panel-head"><h2>Pågående rekryteringar</h2><button className="secondary small" onClick={onOpenFilters}><SlidersHorizontal size={16}/>Filter</button></div>
         <div className="recruit-head"><span>Namn</span><span>Grupp</span><span>Nästa steg</span><span>Omfattning</span><span>Status</span></div>
         {candidates.map(person => <div className="recruit-row" key={person.id}>
           <span className="person-cell"><Avatar person={person}/><span><b>{person.name}</b><small>{person.role}</small></span></span>
@@ -615,7 +615,7 @@ function Overview({ people, onOpenRecruitment }) {
   </>;
 }
 
-function Employees({ people, groups, query, setSelectedId, onAdd }) {
+function Employees({ people, groups, query, setSelectedId, onAdd, onOpenFilters }) {
   // Medarbetarvyn filtrerar först och grupperar sedan så att listan går att läsa snabbt.
   const normalized = query.toLowerCase();
   const rows = people.filter(person => person.status === 'Anställd' && `${person.name} ${person.group} ${person.role}`.toLowerCase().includes(normalized));
@@ -629,9 +629,39 @@ function Employees({ people, groups, query, setSelectedId, onAdd }) {
   return <>
     <PageHeader title="Medarbetare" subtitle={`${rows.length} aktiva profiler`} onAdd={onAdd} addLabel="Lägg till medarbetare" />
     <section className="panel list-panel">
-      <div className="panel-head"><h2>Alla medarbetare</h2><button className="secondary small"><SlidersHorizontal size={16}/>Filtrera</button></div>
+      <div className="panel-head"><h2>Alla medarbetare</h2><button className="secondary small" onClick={onOpenFilters}><SlidersHorizontal size={16}/>Filtrera</button></div>
       <div className="employee-head"><span>Medarbetare</span><span>Grupp</span><span>Tjänstgöringsgrad</span><span>Provanställning upphör</span><span/></div>
       {rows.length ? orderedGroups.map(group => { const groupName = groupLabel(group); return <div key={groupName} className="group-section"><div className="group-section-head"><h3>{groupName}</h3><span>{(grouped[groupName] || []).length} personer</span></div>{(grouped[groupName] || []).map(person => <button className="employee-row" key={person.id} onClick={() => setSelectedId(person.id)}><span className="person-cell"><Avatar person={person}/><span><b>{person.name}</b><small>{person.role}</small></span></span><span>{person.group}</span><span>{person.rate} %</span><span>{person.probationEnd ? new Date(person.probationEnd).toLocaleDateString('sv-SE') : '-'}</span><ChevronRight size={17}/></button>)}</div>; }) : <div className="empty-state">Inga aktiva medarbetare matchar sökningen.</div>}
+    </section>
+  </>;
+}
+
+function PeopleSearchResults({ people, query, groupFilter, dateFrom, dateTo, setSelectedId }) {
+  const normalized = query.trim().toLocaleLowerCase("sv");
+  const rows = people.filter(person => {
+    const searchable = [person.name, person.role, person.group, person.email, person.phone, person.status].filter(Boolean).join(" ").toLocaleLowerCase("sv");
+    const personDate = person.employmentDate || person.start || "";
+    const matchesQuery = !normalized || searchable.includes(normalized);
+    const matchesGroup = groupFilter === "Alla" || person.group === groupFilter;
+    const matchesFrom = !dateFrom || (personDate && personDate >= dateFrom);
+    const matchesTo = !dateTo || (personDate && personDate <= dateTo);
+    return matchesQuery && matchesGroup && matchesFrom && matchesTo;
+  }).sort((a, b) => a.name.localeCompare(b.name, "sv"));
+
+  return <>
+    <PageHeader title="Sökresultat" subtitle={`${rows.length} personer matchar valda sök- och filtervillkor`} />
+    <section className="panel people-search-panel">
+      <div className="people-search-head"><span>Person</span><span>Grupp</span><span>Anställnings-/startdatum</span><span>Status</span><span /></div>
+      {rows.length ? rows.map(person => {
+        const personDate = person.employmentDate || person.start;
+        return <button className="people-search-row" key={person.id} onClick={() => setSelectedId(person.id)}>
+          <span className="person-cell"><Avatar person={person}/><span><b>{person.name}</b><small>{person.role || person.email}</small></span></span>
+          <span>{person.group || "-"}</span>
+          <span>{personDate ? formatDate(personDate) : "-"}</span>
+          <span><span className={person.status === "Avvisad" ? "tag danger" : "tag"}>{person.status}</span></span>
+          <ChevronRight size={17}/>
+        </button>;
+      }) : <div className="empty-state">Inga personer matchar sökningen och de valda filtren.</div>}
     </section>
   </>;
 }
@@ -1318,6 +1348,12 @@ function App() {
   const [newEmployeeOpen, setNewEmployeeOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [menu, setMenu] = useState(false);
+  const [groupFilter, setGroupFilter] = useState("Alla");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const peopleGroupOptions = ["Alla", ...Array.from(new Set([...groups.map(groupLabel), ...people.map(person => person.group).filter(Boolean)]))];
+  const hasPeopleFilters = Boolean(query.trim() || groupFilter !== "Alla" || dateFrom || dateTo);
 
   useEffect(() => {
     setPeople(prev => pruneRejectedPeople(prev, retentionDays));
@@ -1420,14 +1456,15 @@ function App() {
 
   const page = useMemo(() => {
     const common = { people, groups, setPeople, setSelectedId };
-    if (active === 'Översikt') return <Overview people={people} onOpenRecruitment={() => setNewRecruitmentOpen(true)} />;
-    if (active === 'Medarbetare') return <Employees people={people} groups={groups} query={query} setSelectedId={setSelectedId} onAdd={() => setNewEmployeeOpen(true)} />;
+    if (hasPeopleFilters) return <PeopleSearchResults people={people} query={query} groupFilter={groupFilter} dateFrom={dateFrom} dateTo={dateTo} setSelectedId={setSelectedId} />;
+    if (active === 'Översikt') return <Overview people={people} onOpenRecruitment={() => setNewRecruitmentOpen(true)} onOpenFilters={() => setFiltersOpen(true)} />;
+    if (active === 'Medarbetare') return <Employees people={people} groups={groups} query={query} setSelectedId={setSelectedId} onAdd={() => setNewEmployeeOpen(true)} onOpenFilters={() => setFiltersOpen(true)} />;
     if (active === 'Rekrytering') return <Recruitment people={people} setPeople={setPeople} setSelectedId={setSelectedId} retentionDays={retentionDays} currentUser={currentUser} onAdd={() => setNewRecruitmentOpen(true)} />;
     if (active === 'Kalender') return <Calendar people={people} calendarEvents={calendarEvents} setCalendarEvents={setCalendarEvents} />;
     if (active === 'Grupper') return <Groups groups={groups} setGroups={setGroups} people={people} />;
     if (active === 'Import & export') return <ImportExport people={people} />;
     return <Admin groups={groups} people={people} admins={admins} setAdmins={setAdmins} currentUser={currentUser} onCurrentUserUpdate={updateCurrentUser} retentionDays={retentionDays} setRetentionDays={setRetentionDays} colorTheme={colorTheme} setColorTheme={setColorTheme} />;
-  }, [active, people, groups, query, admins, currentUser, retentionDays, colorTheme]);
+  }, [active, people, groups, query, groupFilter, dateFrom, dateTo, hasPeopleFilters, admins, currentUser, retentionDays, colorTheme]);
 
   if (backendLoading) {
     return <div className="login-shell"><section className="login-panel"><div className="login-brand"><strong>Folk<span>.</span></strong><small>Medarbetarkoll</small></div><p className="loading-state">Laddar data från backend...</p></section></div>;
@@ -1454,11 +1491,18 @@ function App() {
     <div className="main-wrap">
       <header className="topbar">
         <button className="mobile-menu" aria-label="Öppna meny" onClick={() => setMenu(!menu)}><Menu/></button>
-        <div className="search"><Search size={18}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Sök medarbetare, grupp eller rekrytering"/></div>
+        <div className="search"><Search size={18}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Sök namn, roll, e-post, telefon eller grupp"/></div>
+        <button className={hasPeopleFilters ? "secondary topbar-filter active" : "secondary topbar-filter"} aria-expanded={filtersOpen} onClick={() => setFiltersOpen(!filtersOpen)}><SlidersHorizontal size={17}/><span>Filter</span></button>
         <button className="icon-btn" aria-label="Notiser"><Bell size={20}/></button>
         <button className="user"><span>{userInitials(currentUser.name)}</span><b>{currentUser.name}</b></button>
         <button className="icon-btn" aria-label="Logga ut" onClick={logout}><LogOut size={19}/></button>
       </header>
+      {filtersOpen ? <div className="people-filter-bar">
+        <label><span>Grupp</span><select value={groupFilter} onChange={e => setGroupFilter(e.target.value)}>{peopleGroupOptions.map(option => <option key={option}>{option}</option>)}</select></label>
+        <label><span>Från och med</span><input type="date" value={dateFrom} max={dateTo || undefined} onChange={e => setDateFrom(e.target.value)} /></label>
+        <label><span>Till och med</span><input type="date" value={dateTo} min={dateFrom || undefined} onChange={e => setDateTo(e.target.value)} /></label>
+        <button className="secondary" disabled={!hasPeopleFilters} onClick={() => { setQuery(""); setGroupFilter("Alla"); setDateFrom(""); setDateTo(""); }}>Rensa allt</button>
+      </div> : null}
       <main>{backendError ? <div className="backend-alert">{backendError}</div> : null}{page}</main>
     </div>
     {newRecruitmentOpen ? <Modal title="Ny Rekrytering" onClose={() => setNewRecruitmentOpen(false)}><PersonForm actor={currentUser} onClose={() => setNewRecruitmentOpen(false)} onSave={person => { setPeople(prev => [...prev, person]); setNewRecruitmentOpen(false); setActive('Rekrytering'); }} /></Modal> : null}
