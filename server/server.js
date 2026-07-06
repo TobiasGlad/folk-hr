@@ -33,6 +33,7 @@ const seedState = {
   calendarEvents: [],
   admins: initialAdmins,
   retentionDays: 30,
+  colorTheme: "folk",
 };
 
 const mimeTypes = {
@@ -96,6 +97,7 @@ function writeState(state) {
     calendarEvents: Array.isArray(state.calendarEvents) ? state.calendarEvents : [],
     admins: Array.isArray(state.admins) ? state.admins : seedState.admins,
     retentionDays: Number(state.retentionDays) || seedState.retentionDays,
+    colorTheme: ["folk", "mikaelgarden"].includes(state.colorTheme) ? state.colorTheme : seedState.colorTheme,
   });
   db.prepare(`
     INSERT INTO app_state (id, state_json, updated_at)

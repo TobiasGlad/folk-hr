@@ -11,6 +11,11 @@ import './styles.css';
 // Första datamängden är lokal och fungerar som seed tills appen kopplas mot backend.
 const recruitmentStageLabels = ['CV', 'Registerutdrag', 'Provpass', 'Checklista'];
 const initialGroupTypes = ['LSS', 'HVB', 'Skola', 'Verksamhetsstöd', 'Assistent', 'Administration'];
+const defaultColorTheme = 'folk';
+const colorThemes = [
+  { id: 'folk', name: 'Folk', description: 'Nuvarande gröna färgskala', colors: ['#0c5948', '#e5f0ec', '#f4f7f6'] },
+  { id: 'mikaelgarden', name: 'Mikaelgården', description: 'Profilfärger från mikaelgarden.se', colors: ['#a64356', '#ebdcb1', '#f7f8f3'] },
+];
 const initialGroups = [
   { id: 1, name: 'Örjanshuset', type: 'LSS' },
   { id: 2, name: 'Skogshuset', type: 'LSS' },
@@ -318,6 +323,7 @@ function loadState() {
     calendarEvents: [],
     admins: ensureSeedUsers(initialAdmins),
     retentionDays: defaultRetentionDays,
+    colorTheme: defaultColorTheme,
   };
   try {
     const raw = localStorage.getItem(storageKey);
@@ -329,6 +335,7 @@ function loadState() {
       calendarEvents: Array.isArray(parsed.calendarEvents) ? parsed.calendarEvents : fallback.calendarEvents,
       admins: ensureSeedUsers(Array.isArray(parsed.admins) && parsed.admins.length ? parsed.admins : fallback.admins),
       retentionDays: Number(parsed.retentionDays) || fallback.retentionDays,
+      colorTheme: colorThemes.some(theme => theme.id === parsed.colorTheme) ? parsed.colorTheme : fallback.colorTheme,
     };
   } catch {
     return fallback;
@@ -1178,7 +1185,7 @@ function LoginScreen({ users, setUsers, onLogin }) {
   </div>;
 }
 
-function Admin({ groups, people, admins, setAdmins, currentUser, onCurrentUserUpdate, retentionDays, setRetentionDays }) {
+function Admin({ groups, people, admins, setAdmins, currentUser, onCurrentUserUpdate, retentionDays, setRetentionDays, colorTheme, setColorTheme }) {
   // Administrationsvyn styr behöriga användare och grundregler för systemet.
   const [adminName, setAdminName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
@@ -1239,6 +1246,16 @@ function Admin({ groups, people, admins, setAdmins, currentUser, onCurrentUserUp
 
   return <>
     <PageHeader title="Administration" subtitle="Systemets inställningar och behörigheter" />
+    <section className="panel theme-panel">
+      <div className="panel-head"><div><h2>Färgskala</h2><p>Välj färgprofil för hela Folk.</p></div><span className="tag">{colorThemes.find(theme => theme.id === colorTheme)?.name}</span></div>
+      <div className="theme-options">
+        {colorThemes.map(theme => <button type="button" key={theme.id} className={colorTheme === theme.id ? "theme-option selected" : "theme-option"} aria-pressed={colorTheme === theme.id} onClick={() => setColorTheme(theme.id)}>
+          <span className="theme-swatches" aria-hidden="true">{theme.colors.map(color => <i key={color} style={{ backgroundColor: color }} />)}</span>
+          <span><strong>{theme.name}</strong><small>{theme.description}</small></span>
+          <span className="theme-check">{colorTheme === theme.id ? "Vald" : "Välj"}</span>
+        </button>)}
+      </div>
+    </section>
     <section className="panel admin-users">
       <div className="panel-head"><div><h2>Användare</h2><p>Admin skapar användare. Nya användare väljer lösenord vid första inloggningen.</p></div><span className="tag">{admins.length} användare</span></div>
       {canManageUsers ? <form className="admin-user-form" onSubmit={addAdmin}>
@@ -1295,6 +1312,7 @@ function App() {
   const [backendLoading, setBackendLoading] = useState(true);
   const [backendError, setBackendError] = useState('');
   const [retentionDays, setRetentionDays] = useState(seed.retentionDays);
+  const [colorTheme, setColorTheme] = useState(seed.colorTheme);
   const [query, setQuery] = useState('');
   const [newRecruitmentOpen, setNewRecruitmentOpen] = useState(false);
   const [newEmployeeOpen, setNewEmployeeOpen] = useState(false);
@@ -1319,6 +1337,7 @@ function App() {
         setCalendarEvents(Array.isArray(source.calendarEvents) ? source.calendarEvents : []);
         setAdmins(nextAdmins);
         setRetentionDays(Number(source.retentionDays) || defaultRetentionDays);
+        setColorTheme(colorThemes.some(theme => theme.id === source.colorTheme) ? source.colorTheme : defaultColorTheme);
         const sessionEmail = localStorage.getItem(`${storageKey}-session`);
         const sessionUser = nextAdmins.find(admin => admin.email === sessionEmail);
         setCurrentUser(sessionUser?.password ? publicUser(sessionUser) : null);
@@ -1334,11 +1353,15 @@ function App() {
   }, []);
 
   useEffect(() => {
+    document.documentElement.dataset.theme = colorTheme;
+  }, [colorTheme]);
+
+  useEffect(() => {
     if (backendLoading) return;
-    const state = { people, groups, calendarEvents, admins, retentionDays };
+    const state = { people, groups, calendarEvents, admins, retentionDays, colorTheme };
     localStorage.setItem(storageKey, JSON.stringify(state));
     saveBackendState(state).catch(() => setBackendError('Kunde inte spara till backend. Kontrollera att servern kör.'));
-  }, [people, groups, calendarEvents, admins, retentionDays, backendLoading]);
+  }, [people, groups, calendarEvents, admins, retentionDays, colorTheme, backendLoading]);
 
   const login = user => {
     setCurrentUser(user);
@@ -1403,8 +1426,8 @@ function App() {
     if (active === 'Kalender') return <Calendar people={people} calendarEvents={calendarEvents} setCalendarEvents={setCalendarEvents} />;
     if (active === 'Grupper') return <Groups groups={groups} setGroups={setGroups} people={people} />;
     if (active === 'Import & export') return <ImportExport people={people} />;
-    return <Admin groups={groups} people={people} admins={admins} setAdmins={setAdmins} currentUser={currentUser} onCurrentUserUpdate={updateCurrentUser} retentionDays={retentionDays} setRetentionDays={setRetentionDays} />;
-  }, [active, people, groups, query, admins, currentUser, retentionDays]);
+    return <Admin groups={groups} people={people} admins={admins} setAdmins={setAdmins} currentUser={currentUser} onCurrentUserUpdate={updateCurrentUser} retentionDays={retentionDays} setRetentionDays={setRetentionDays} colorTheme={colorTheme} setColorTheme={setColorTheme} />;
+  }, [active, people, groups, query, admins, currentUser, retentionDays, colorTheme]);
 
   if (backendLoading) {
     return <div className="login-shell"><section className="login-panel"><div className="login-brand"><strong>Folk<span>.</span></strong><small>Medarbetarkoll</small></div><p className="loading-state">Laddar data från backend...</p></section></div>;
