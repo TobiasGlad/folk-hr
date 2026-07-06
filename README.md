@@ -4,12 +4,25 @@ En modulär, lokal HR-prototyp byggd med React och Vite.
 
 ## Starta
 
+Installera beroenden om det behövs:
+
 ```powershell
 npm install
+```
+
+Starta backend med SQLite-databas:
+
+```powershell
+npm run server
+```
+
+Starta Vite i en annan terminal:
+
+```powershell
 npm run dev
 ```
 
-Öppna sedan adressen som visas i terminalen.
+Öppna sedan adressen som visas i Vite-terminalen. Backend kör normalt på `http://localhost:8020` och databasen skapas i `data/folk.db`.
 
 ## Ingår i prototypen
 
@@ -20,4 +33,4 @@ npm run dev
 - CSV-export och gränssnitt för CSV-import
 - Responsiv dator- och mobilvy
 
-Data sparas endast i webbläsarens minne i denna prototyp. För produktion behövs backend, databas, autentisering, behörighetsmodell, säker fillagring och juridiskt verifierade LAS-beräkningar.
+Data sparas i en lokal SQLite-databas via Node-backend. För produktion behövs fortfarande härdade lösenord, serverstyrda sessioner, behörighetskontroller per API-anrop, säker fillagring och juridiskt verifierade LAS-beräkningar.

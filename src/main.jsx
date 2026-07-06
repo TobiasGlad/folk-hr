@@ -3,8 +3,8 @@ import { createRoot } from 'react-dom/client';
 import {
   LayoutDashboard, Users, BriefcaseBusiness, Shapes, ArrowUpDown,
   Settings, Search, Bell, UserPlus, SlidersHorizontal, ChevronRight, CalendarDays,
-  Check, LockKeyhole, Plus, X, Trash2, Upload, Download, Camera, FileText,
-  Building2, Clock3, ShieldCheck, Pencil, MoreHorizontal, Menu, ListChecks
+  Check, LockKeyhole, Plus, X, Trash2, Upload, Download, FileText,
+  Building2, Clock3, ShieldCheck, Pencil, MoreHorizontal, Menu, ListChecks, LogOut
 } from 'lucide-react';
 import './styles.css';
 
@@ -15,6 +15,9 @@ const initialGroups = [
   { id: 1, name: 'Örjanshuset', type: 'LSS' },
   { id: 2, name: 'Skogshuset', type: 'LSS' },
   { id: 3, name: 'Vikarier', type: 'Verksamhetsstöd' },
+];
+const initialAdmins = [
+  { id: 1, name: 'Tobias Glad', email: 'tobias.glad@mikaelgarden.se', role: 'Admin', password: 'Herzen222' },
 ];
 const initialPeopleSeed = [
   { id: 1, name: 'Elin Berg', initials: 'EB', email: 'elin.berg@folk.se', phone: '070-182 31 40', group: 'Örjanshuset', role: 'Stödassistent', rate: 100, stage: 2, status: 'Rekrytering', start: '2026-08-18', employmentDate: '2026-08-18', probationEnd: '2027-02-18', color: '#d9e9e2' },
@@ -27,6 +30,23 @@ const initialPeopleSeed = [
 const storageKey = 'folk-hr-state-v5';
 const defaultRetentionDays = 30;
 const documentKinds = ['CV', 'Registerutdrag', 'Kvitto', 'Intyg', 'Avtal', 'Annat'];
+const apiStatePath = '/api/state';
+
+async function loadBackendState() {
+  const response = await fetch(apiStatePath, { headers: { accept: 'application/json' } });
+  if (!response.ok) throw new Error('Kunde inte ladda data från backend');
+  return response.json();
+}
+
+async function saveBackendState(state) {
+  const response = await fetch(apiStatePath, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(state),
+  });
+  if (!response.ok) throw new Error('Kunde inte spara data till backend');
+  return response.json();
+}
 
 function makeRecruitmentSteps(completedCount = 0, existing = []) {
   return recruitmentStageLabels.map((label, index) => {
@@ -37,6 +57,9 @@ function makeRecruitmentSteps(completedCount = 0, existing = []) {
       note: current.note || '',
       completed: typeof current.completed === 'boolean' ? current.completed : index < completedCount,
       savedAt: current.savedAt || null,
+      savedBy: current.savedBy || null,
+      approvedAt: current.approvedAt || null,
+      approvedBy: current.approvedBy || null,
       file: current.file || null,
       documentKind: current.documentKind || '',
       documentLabel: current.documentLabel || '',
@@ -163,6 +186,8 @@ function normalizePerson(person) {
       rejectedAt: recruitment.rejectedAt || null,
       rejectedReason: recruitment.rejectedReason || '',
       promotedAt: recruitment.promotedAt || null,
+      promotedBy: recruitment.promotedBy || null,
+      rejectedBy: recruitment.rejectedBy || null,
     },
   };
 }
@@ -171,7 +196,7 @@ function normalizePeople(people) {
   return people.map(normalizePerson);
 }
 
-function createCandidateFromForm(data) {
+function createCandidateFromForm(data, actor = null) {
   const initials = data.name.split(' ').map(part => part[0]).slice(0, 2).join('').toUpperCase();
   return normalizePerson({
     id: Date.now(),
@@ -190,6 +215,48 @@ function createCandidateFromForm(data) {
     noticeDate: data.noticeDate || '',
     terminationDate: data.terminationDate || '',
     color: '#dce9e3',
+    createdAt: new Date().toISOString(),
+    createdBy: actor,
+  });
+}
+
+function createEmployeeFromForm(data, actor = null) {
+  const initials = data.name.split(' ').map(part => part[0]).slice(0, 2).join('').toUpperCase();
+  const completedSteps = makeRecruitmentSteps(recruitmentStageLabels.length).map(step => ({
+    ...step,
+    completed: true,
+    note: step.note || 'Genomförd sedan tidigare',
+    savedAt: new Date().toISOString(),
+    savedBy: actor,
+    approvedAt: new Date().toISOString(),
+    approvedBy: actor,
+  }));
+  return normalizePerson({
+    id: Date.now(),
+    name: data.name,
+    initials,
+    email: data.email,
+    phone: data.phone,
+    group: data.group,
+    role: data.role,
+    rate: Number(data.rate),
+    stage: recruitmentStageLabels.length,
+    status: 'Anställd',
+    start: data.employmentDate || new Date().toISOString().slice(0, 10),
+    employmentDate: data.employmentDate || '',
+    probationEnd: data.probationEnd || '',
+    noticeDate: data.noticeDate || '',
+    terminationDate: data.terminationDate || '',
+    color: '#dce9e3',
+    createdAt: new Date().toISOString(),
+    createdBy: actor,
+    hiredAt: new Date().toISOString(),
+    hiredBy: actor,
+    recruitment: {
+      steps: completedSteps,
+      promotedAt: new Date().toISOString(),
+      promotedBy: actor,
+    },
   });
 }
 
@@ -199,11 +266,57 @@ function futureDateISO(days) {
   return date.toISOString().slice(0, 10);
 }
 
+function normalizeUser(user) {
+  return {
+    id: user.id || Date.now(),
+    name: user.name || '',
+    email: (user.email || '').trim(),
+    role: user.role || (user.isAdmin ? 'Admin' : 'Användare'),
+    password: user.password || '',
+    createdAt: user.createdAt || null,
+    createdBy: user.createdBy || null,
+  };
+}
+
+function normalizeUsers(users = []) {
+  return users.map(normalizeUser).filter(user => user.email);
+}
+
+function ensureSeedUsers(users = []) {
+  const legacyEmails = new Set(['karin.andersson@folk.se']);
+  const normalized = normalizeUsers(users).filter(user => !legacyEmails.has(user.email.toLowerCase()));
+  const byEmail = new Map(normalized.map(user => [user.email.toLowerCase(), user]));
+  normalizeUsers(initialAdmins).forEach(seedUser => {
+    byEmail.set(seedUser.email.toLowerCase(), { ...byEmail.get(seedUser.email.toLowerCase()), ...seedUser });
+  });
+  return Array.from(byEmail.values());
+}
+
+function publicUser(user) {
+  if (!user) return null;
+  return { id: user.id, name: user.name, email: user.email, role: user.role };
+}
+
+function userInitials(name = '') {
+  return name.split(' ').map(part => part[0]).slice(0, 2).join('').toUpperCase() || 'U';
+}
+
+function formatActor(actor) {
+  return actor?.name || actor?.email || '-';
+}
+
+function formatAudit(actor, dateIso) {
+  const actorName = formatActor(actor);
+  const date = dateIso ? formatDate(dateIso) : '';
+  return date ? `${actorName} · ${date}` : actorName;
+}
+
 function loadState() {
   const fallback = {
     people: normalizePeople(initialPeopleSeed),
     groups: initialGroups,
     calendarEvents: [],
+    admins: ensureSeedUsers(initialAdmins),
     retentionDays: defaultRetentionDays,
   };
   try {
@@ -214,6 +327,7 @@ function loadState() {
       people: normalizePeople(Array.isArray(parsed.people) ? parsed.people : fallback.people),
       groups: Array.isArray(parsed.groups) && parsed.groups.length ? parsed.groups : fallback.groups,
       calendarEvents: Array.isArray(parsed.calendarEvents) ? parsed.calendarEvents : fallback.calendarEvents,
+      admins: ensureSeedUsers(Array.isArray(parsed.admins) && parsed.admins.length ? parsed.admins : fallback.admins),
       retentionDays: Number(parsed.retentionDays) || fallback.retentionDays,
     };
   } catch {
@@ -428,22 +542,41 @@ function Progress({ person, compact = false }) {
   </div>;
 }
 
-function PersonForm({ onSave, onClose }) {
+function PersonForm({ actor, onSave, onClose }) {
   // Formuläret skapar en ny rekryteringskandidat med de fält resten av appen förväntar sig.
   const submit = e => {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(e.currentTarget));
-    onSave(createCandidateFromForm(data));
+    onSave(createCandidateFromForm(data, actor));
   };
 
   return <form className="form" onSubmit={submit}>
-    <div className="photo-upload"><Camera size={22}/><span>Lägg till porträttbild</span><input type="file" accept="image/*" aria-label="Porträttbild" /></div>
     <label>Fullständigt namn<input name="name" required placeholder="Förnamn Efternamn" /></label>
     <div className="form-grid"><label>E-post<input type="email" name="email" required placeholder="namn@organisation.se" /></label><label>Telefon<input name="phone" required placeholder="070-000 00 00" /></label></div>
     <label>Tjänstgöringsgrad<input name="rate" type="number" min="0" max="100" defaultValue="100" /></label>
     <div className="form-grid"><label>Anställningsdatum<input name="employmentDate" type="date" /></label><label>Provanställning upphör<input name="probationEnd" type="date" /></label></div>
     <div className="form-grid"><label>Uppsägning inlämnad<input name="noticeDate" type="date" /></label><label>Sista anställningsdag<input name="terminationDate" type="date" /></label></div>
     <div className="form-actions"><button type="button" className="secondary" onClick={onClose}>Avbryt</button><button className="primary">Skapa kandidat</button></div>
+  </form>;
+}
+
+function EmployeeForm({ groups, actor, onSave, onClose }) {
+  // Direkt tillagd medarbetare hoppar över kandidatlistan men markerar rekryteringskraven som redan uppfyllda.
+  const submit = e => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.currentTarget));
+    onSave(createEmployeeFromForm(data, actor));
+  };
+
+  return <form className="form" onSubmit={submit}>
+    <label>Fullständigt namn<input name="name" required placeholder="Förnamn Efternamn" /></label>
+    <div className="form-grid"><label>E-post<input type="email" name="email" required placeholder="namn@organisation.se" /></label><label>Telefon<input name="phone" required placeholder="070-000 00 00" /></label></div>
+    <div className="form-grid"><label>Grupp<select name="group" required>{groups.map(group => <option key={groupLabel(group)} value={groupLabel(group)}>{groupLabel(group)}</option>)}</select></label><label>Roll<input name="role" required placeholder="Ex. Stödassistent" /></label></div>
+    <label>Tjänstgöringsgrad<input name="rate" type="number" min="0" max="100" defaultValue="100" /></label>
+    <div className="form-grid"><label>Anställningsdatum<input name="employmentDate" type="date" /></label><label>Provanställning upphör<input name="probationEnd" type="date" /></label></div>
+    <div className="form-grid"><label>Uppsägning inlämnad<input name="noticeDate" type="date" /></label><label>Sista anställningsdag<input name="terminationDate" type="date" /></label></div>
+    <label className="check-confirm"><input name="recruitmentDone" type="checkbox" required /><span>Alla checkpunkter för rekryteringen är gjorda sedan tidigare.</span></label>
+    <div className="form-actions"><button type="button" className="secondary" onClick={onClose}>Avbryt</button><button className="primary">Lägg till medarbetare</button></div>
   </form>;
 }
 
@@ -487,7 +620,7 @@ function Employees({ people, groups, query, setSelectedId, onAdd }) {
   const orderedGroups = groupOrder(groups, Object.keys(grouped));
 
   return <>
-    <PageHeader title="Medarbetare" subtitle={`${rows.length} aktiva profiler`} onAdd={onAdd} />
+    <PageHeader title="Medarbetare" subtitle={`${rows.length} aktiva profiler`} onAdd={onAdd} addLabel="Lägg till medarbetare" />
     <section className="panel list-panel">
       <div className="panel-head"><h2>Alla medarbetare</h2><button className="secondary small"><SlidersHorizontal size={16}/>Filtrera</button></div>
       <div className="employee-head"><span>Medarbetare</span><span>Grupp</span><span>Tjänstgöringsgrad</span><span>Provanställning upphör</span><span/></div>
@@ -566,7 +699,7 @@ function Calendar({ people, calendarEvents, setCalendarEvents }) {
   </>;
 }
 
-function Recruitment({ people, setPeople, setSelectedId, retentionDays, onAdd }) {
+function Recruitment({ people, setPeople, setSelectedId, retentionDays, currentUser, onAdd }) {
   // Rekryteringsvyn är nu den enda platsen där kandidater går igenom steg, filer och beslut.
   const activeCandidates = people.filter(person => person.status === 'Rekrytering');
   const archivedCandidates = people.filter(person => person.status === 'Avvisad' && isWithinRetention(person.recruitment?.rejectedAt, retentionDays));
@@ -578,6 +711,7 @@ function Recruitment({ people, setPeople, setSelectedId, retentionDays, onAdd })
       recruitment: {
         ...person.recruitment,
         rejectedAt: new Date().toISOString(),
+        rejectedBy: currentUser,
         rejectedReason: person.recruitment?.rejectedReason || '',
       },
     } : person));
@@ -658,7 +792,10 @@ function RecruitmentStepCard({ stageLabel, step, index, locked, onChange, onSave
     </div>
     <div className="step-card-actions">
       <button type="button" className="secondary small" disabled={locked} onClick={() => onSave(index)}><Check size={15}/>Spara steg</button>
-      {step.savedAt ? <span className="tag">Sparad {new Date(step.savedAt).toLocaleDateString('sv-SE')}</span> : <span className="tag muted">Inte sparad</span>}
+      <div className="step-audit">
+        {step.approvedBy ? <span>Godkänd av {formatAudit(step.approvedBy, step.approvedAt)}</span> : null}
+        {step.savedAt ? <span>Sparad av {formatAudit(step.savedBy, step.savedAt)}</span> : <span>Inte sparad</span>}
+      </div>
     </div>
   </section>;
 }
@@ -704,7 +841,7 @@ function DocumentShelf({ person, setPeople, title, subtitle, uploadLabel = 'Ladd
   </section>;
 }
 
-function CandidateDetail({ person, setPeople, groups, onClose, onPromote, onReject }) {
+function CandidateDetail({ person, setPeople, groups, currentUser, onClose, onPromote, onReject }) {
   // Denna vy visar samma kandidatdata som listan, men med redigerbara steg, filer och slutplacering.
   const [draft, setDraft] = useState(() => constrainRecruitmentSteps(getRecruitmentSteps(person)));
   const [finalPlacement, setFinalPlacement] = useState(() => ({ group: person.group || groupLabel(groups[0]) || '', role: person.role || '' }));
@@ -716,12 +853,20 @@ function CandidateDetail({ person, setPeople, groups, onClose, onPromote, onReje
 
   const updateDraft = (index, patch) => {
     setDraft(prev => {
-      const next = prev.map((step, stepIndex) => stepIndex === index ? { ...step, ...patch } : step);
+      const next = prev.map((step, stepIndex) => {
+        if (stepIndex !== index) return step;
+        const changed = { ...step, ...patch };
+        if ('completed' in patch) {
+          changed.approvedAt = patch.completed ? new Date().toISOString() : null;
+          changed.approvedBy = patch.completed ? currentUser : null;
+        }
+        return changed;
+      });
       if ('completed' in patch) {
         const priorComplete = next.slice(0, index).every(step => step.completed);
         if (patch.completed && !priorComplete) return prev;
         if (!patch.completed) {
-          return next.map((step, stepIndex) => stepIndex > index ? { ...step, completed: false } : step);
+          return next.map((step, stepIndex) => stepIndex > index ? { ...step, completed: false, approvedAt: null, approvedBy: null } : step);
         }
       }
       return constrainRecruitmentSteps(next);
@@ -734,7 +879,7 @@ function CandidateDetail({ person, setPeople, groups, onClose, onPromote, onReje
       ...current,
       recruitment: {
         ...current.recruitment,
-        steps: draft.map((step, stepIndex) => stepIndex === index ? { ...step, savedAt: now } : step),
+        steps: draft.map((step, stepIndex) => stepIndex === index ? { ...step, savedAt: now, savedBy: currentUser } : step),
       },
     }) : current));
   };
@@ -772,6 +917,7 @@ function CandidateDetail({ person, setPeople, groups, onClose, onPromote, onReje
       <div><label>Telefon</label><b>{person.phone}</b></div>
       <div><label>Tjänstgöringsgrad</label><b>{person.rate} %</b></div>
       <div><label>Aktuellt steg</label><b>{activeLabel}</b></div>
+      <div><label>Skapad av</label><b>{formatAudit(person.createdBy, person.createdAt)}</b></div>
     </div>
     <div className="recruitment-editor">
       {draft.map((step, index) => { const locked = index > 0 && !draft.slice(0, index).every(item => item.completed); return <RecruitmentStepCard key={step.id} stageLabel={recruitmentStageLabels[index]} step={step} index={index} locked={locked} onChange={updateDraft} onSave={saveStep} onUpload={uploadStepDocument} />; })}
@@ -811,6 +957,8 @@ function EmployeeDetail({ person, setPeople, onClose, onEdit }) {
       <div><label>Första anställningsdag</label><b>{person.employmentDate ? new Date(person.employmentDate).toLocaleDateString('sv-SE') : (person.start ? new Date(person.start).toLocaleDateString('sv-SE') : '-')}</b></div>
       <div><label>Provanställning upphör</label><b>{person.probationEnd ? new Date(person.probationEnd).toLocaleDateString('sv-SE') : '-'}</b></div>
       <div><label>Startdatum i systemet</label><b>{person.start ? new Date(person.start).toLocaleDateString('sv-SE') : '-'}</b></div>
+      <div><label>Skapad av</label><b>{formatAudit(person.createdBy, person.createdAt)}</b></div>
+      <div><label>Anställd av</label><b>{formatAudit(person.hiredBy || person.recruitment?.promotedBy, person.hiredAt || person.recruitment?.promotedAt)}</b></div>
     </div>
     <DocumentShelf
       person={person}
@@ -894,11 +1042,11 @@ function RejectedDetail({ person, onClose, retentionDays }) {
   </Modal>;
 }
 
-function PersonDetail({ person, setPeople, groups, onClose, onPromote, onReject, retentionDays }) {
+function PersonDetail({ person, setPeople, groups, currentUser, onClose, onPromote, onReject, retentionDays }) {
   // Ett enda valpunkt för alla profiler, där vyerna skiljer sig beroende på status.
   const [editing, setEditing] = useState(false);
   if (person.status === 'Rekrytering') {
-    return <CandidateDetail person={person} setPeople={setPeople} groups={groups} onClose={onClose} onPromote={onPromote} onReject={onReject} />;
+    return <CandidateDetail person={person} setPeople={setPeople} groups={groups} currentUser={currentUser} onClose={onClose} onPromote={onPromote} onReject={onReject} />;
   }
   if (person.status === 'Avvisad') {
     return <RejectedDetail person={person} onClose={onClose} retentionDays={retentionDays} />;
@@ -979,12 +1127,147 @@ function ImportExport({ people }) {
   </>;
 }
 
-function Admin({ groups, people, retentionDays, setRetentionDays }) {
-  // Administrationsvyn styr den regel som avgör hur länge avvisade kandidater sparas.
+function LoginScreen({ users, setUsers, onLogin }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [message, setMessage] = useState('');
+  const matchedUser = users.find(user => user.email.toLowerCase() === email.trim().toLowerCase());
+  const needsPassword = matchedUser && !matchedUser.password;
+
+  const submit = event => {
+    event.preventDefault();
+    setMessage('');
+    if (!matchedUser) {
+      setMessage('E-postadressen är inte registrerad. Kontakta admin.');
+      return;
+    }
+    if (needsPassword) {
+      if (password.length < 6) {
+        setMessage('Välj ett lösenord med minst 6 tecken.');
+        return;
+      }
+      if (password !== confirmPassword) {
+        setMessage('Lösenorden matchar inte.');
+        return;
+      }
+      const updated = { ...matchedUser, password };
+      setUsers(prev => prev.map(user => user.id === matchedUser.id ? updated : user));
+      onLogin(publicUser(updated));
+      return;
+    }
+    if (matchedUser.password !== password) {
+      setMessage('Fel lösenord.');
+      return;
+    }
+    onLogin(publicUser(matchedUser));
+  };
+
+  return <div className="login-shell">
+    <section className="login-panel">
+      <div className="login-brand"><strong>Folk<span>.</span></strong><small>Medarbetarkoll</small></div>
+      <form className="form" onSubmit={submit}>
+        <label>E-postadress<input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="namn@organisation.se" required /></label>
+        <label>Lösenord<input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder={needsPassword ? 'Välj lösenord' : 'Lösenord'} required /></label>
+        {needsPassword ? <label>Bekräfta lösenord<input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Upprepa lösenord" required /></label> : null}
+        {needsPassword ? <p className="login-hint">Första inloggningen: välj ett lösenord för ditt konto.</p> : null}
+        {message ? <p className="login-error">{message}</p> : null}
+        <button className="primary">{needsPassword ? 'Skapa lösenord och logga in' : 'Logga in'}</button>
+      </form>
+    </section>
+  </div>;
+}
+
+function Admin({ groups, people, admins, setAdmins, currentUser, onCurrentUserUpdate, retentionDays, setRetentionDays }) {
+  // Administrationsvyn styr behöriga användare och grundregler för systemet.
+  const [adminName, setAdminName] = useState('');
+  const [adminEmail, setAdminEmail] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordMessage, setPasswordMessage] = useState('');
+
+  const addAdmin = event => {
+    event.preventDefault();
+    const name = adminName.trim();
+    const email = adminEmail.trim();
+    if (!name || !email) return;
+    const exists = admins.some(admin => admin.email.toLowerCase() === email.toLowerCase());
+    if (exists) return;
+    if (currentUser?.role !== 'Admin') return;
+    setAdmins(prev => [...prev, { id: Date.now(), name, email, role: 'Användare', password: '', createdAt: new Date().toISOString(), createdBy: currentUser }]);
+    setAdminName('');
+    setAdminEmail('');
+  };
+
+  const removeAdmin = id => {
+    if (currentUser?.role !== 'Admin' || id === currentUser.id) return;
+    const target = admins.find(admin => admin.id === id);
+    if (!target) return;
+    const adminCount = admins.filter(admin => admin.role === 'Admin').length;
+    if (target.role === 'Admin' && adminCount <= 1) return;
+    const confirmed = window.confirm(`Ta bort användaren ${target.name}? Personen kommer inte längre kunna logga in.`);
+    if (!confirmed) return;
+    setAdmins(prev => prev.filter(admin => admin.id !== id));
+  };
+  const canManageUsers = currentUser?.role === 'Admin';
+
+  const changePassword = event => {
+    event.preventDefault();
+    const storedUser = admins.find(admin => admin.id === currentUser?.id);
+    if (!storedUser) return;
+    if (storedUser.password !== currentPassword) {
+      setPasswordMessage('Nuvarande lösenord stämmer inte.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordMessage('Det nya lösenordet måste vara minst 6 tecken.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage('De nya lösenorden matchar inte.');
+      return;
+    }
+    const updatedUser = { ...storedUser, password: newPassword };
+    setAdmins(prev => prev.map(admin => admin.id === storedUser.id ? updatedUser : admin));
+    onCurrentUserUpdate(publicUser(updatedUser));
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordMessage('Lösenordet är uppdaterat.');
+  };
+
   return <>
     <PageHeader title="Administration" subtitle="Systemets inställningar och behörigheter" />
+    <section className="panel admin-users">
+      <div className="panel-head"><div><h2>Användare</h2><p>Admin skapar användare. Nya användare väljer lösenord vid första inloggningen.</p></div><span className="tag">{admins.length} användare</span></div>
+      {canManageUsers ? <form className="admin-user-form" onSubmit={addAdmin}>
+        <label>Namn<input value={adminName} onChange={e => setAdminName(e.target.value)} placeholder="Förnamn Efternamn" required /></label>
+        <label>E-postadress<input type="email" value={adminEmail} onChange={e => setAdminEmail(e.target.value)} placeholder="namn@organisation.se" required /></label>
+        <button className="primary"><Plus size={17}/>Lägg till</button>
+      </form> : <div className="empty-state">Endast admin kan skapa användare.</div>}
+      <div className="admin-user-list">
+        {admins.map(admin => {
+          const isCurrent = admin.id === currentUser?.id;
+          const isLastAdmin = admin.role === 'Admin' && admins.filter(user => user.role === 'Admin').length <= 1;
+          const canRemove = canManageUsers && !isCurrent && !isLastAdmin;
+          const removeReason = isCurrent ? 'Du kan inte ta bort dig själv' : isLastAdmin ? 'Sista admin kan inte tas bort' : 'Endast admin kan ta bort användare';
+          return <div className="admin-user-row" key={admin.id}><div className="mini-avatar">{userInitials(admin.name)}</div><span><strong>{admin.name}</strong><small>{admin.email} · {admin.role}{admin.password ? '' : ' · väntar på lösenord'}</small></span><button className="secondary small danger" disabled={!canRemove} title={canRemove ? `Ta bort ${admin.name}` : removeReason} onClick={() => removeAdmin(admin.id)}><Trash2 size={15}/>Ta bort</button></div>;
+        })}
+      </div>
+    </section>
+    <section className="panel password-panel">
+      <div className="panel-head"><div><h2>Byt lösenord</h2><p>Uppdatera lösenordet för ditt konto.</p></div></div>
+      <form className="password-form" onSubmit={changePassword}>
+        <label>Nuvarande lösenord<input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} required /></label>
+        <label>Nytt lösenord<input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required /></label>
+        <label>Bekräfta nytt lösenord<input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required /></label>
+        <button className="primary">Spara lösenord</button>
+      </form>
+      {passwordMessage ? <div className={passwordMessage.includes('uppdaterat') ? 'password-message success' : 'password-message'}>{passwordMessage}</div> : null}
+    </section>
     <div className="admin-list">
-      <section><ShieldCheck/><div><h3>Behörigheter</h3><p>HR-ansvariga kan se allt. Administratörer kan också ändra struktur och inställningar.</p></div><button className="secondary small"><Pencil size={15}/>Hantera</button></section>
+      <section><ShieldCheck/><div><h3>Behörigheter</h3><p>HR-ansvariga kan se allt. Användare kan också ändra struktur och inställningar.</p></div><span className="tag">Aktivt</span></section>
       <section><ListChecks/><div><h3>Rekryteringsflöde</h3><p>{recruitmentStageLabels.length} obligatoriska steg är aktiva.</p></div><span className="tag">Aktivt</span></section>
       <section><Clock3/><div><h3>Avvisade kandidater</h3><p>Sparas i valda dagar innan de rensas ur arkivet.</p></div><label className="admin-number"><input type="number" min="1" max="3650" value={retentionDays} onChange={e => setRetentionDays(Math.max(1, Number(e.target.value) || 1))} /> dagar</label></section>
       <section><Shapes/><div><h3>Organisation</h3><p>{groups.length} grupper och {people.length} profiler.</p></div><span className="tag">Synkroniserat</span></section>
@@ -993,15 +1276,28 @@ function Admin({ groups, people, retentionDays, setRetentionDays }) {
 }
 
 function App() {
-  // Tillståndet ligger lokalt och skrivs till localStorage så att arbetet faktiskt överlever omladdning.
+  // Tillståndet speglas mot backend/SQLite och använder localStorage som fallback för session och offline-start.
   const seed = loadState();
   const [active, setActive] = useState('Översikt');
   const [people, setPeople] = useState(seed.people);
   const [groups, setGroups] = useState(seed.groups);
   const [calendarEvents, setCalendarEvents] = useState(seed.calendarEvents);
+  const [admins, setAdmins] = useState(seed.admins);
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const email = localStorage.getItem(`${storageKey}-session`);
+      const user = seed.admins.find(admin => admin.email === email);
+      return user?.password ? publicUser(user) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [backendLoading, setBackendLoading] = useState(true);
+  const [backendError, setBackendError] = useState('');
   const [retentionDays, setRetentionDays] = useState(seed.retentionDays);
   const [query, setQuery] = useState('');
   const [newRecruitmentOpen, setNewRecruitmentOpen] = useState(false);
+  const [newEmployeeOpen, setNewEmployeeOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [menu, setMenu] = useState(false);
 
@@ -1010,8 +1306,54 @@ function App() {
   }, [retentionDays]);
 
   useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify({ people, groups, calendarEvents, retentionDays }));
-  }, [people, groups, calendarEvents, retentionDays]);
+    let cancelled = false;
+    loadBackendState()
+      .then(state => {
+        if (cancelled) return;
+        const localBackup = loadState();
+        const shouldMigrateLocal = (!Array.isArray(state.people) || state.people.length === 0) && localBackup.people.length > 0;
+        const source = shouldMigrateLocal ? localBackup : state;
+        const nextAdmins = ensureSeedUsers(source.admins || []);
+        setPeople(normalizePeople(Array.isArray(source.people) ? source.people : []));
+        setGroups(Array.isArray(source.groups) && source.groups.length ? source.groups : initialGroups);
+        setCalendarEvents(Array.isArray(source.calendarEvents) ? source.calendarEvents : []);
+        setAdmins(nextAdmins);
+        setRetentionDays(Number(source.retentionDays) || defaultRetentionDays);
+        const sessionEmail = localStorage.getItem(`${storageKey}-session`);
+        const sessionUser = nextAdmins.find(admin => admin.email === sessionEmail);
+        setCurrentUser(sessionUser?.password ? publicUser(sessionUser) : null);
+        setBackendError(shouldMigrateLocal ? 'Lokal data migreras till backenddatabasen.' : '');
+      })
+      .catch(() => {
+        if (!cancelled) setBackendError('Backend kunde inte nås. Appen använder lokal fallback tills servern startas.');
+      })
+      .finally(() => {
+        if (!cancelled) setBackendLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (backendLoading) return;
+    const state = { people, groups, calendarEvents, admins, retentionDays };
+    localStorage.setItem(storageKey, JSON.stringify(state));
+    saveBackendState(state).catch(() => setBackendError('Kunde inte spara till backend. Kontrollera att servern kör.'));
+  }, [people, groups, calendarEvents, admins, retentionDays, backendLoading]);
+
+  const login = user => {
+    setCurrentUser(user);
+    localStorage.setItem(`${storageKey}-session`, user.email);
+  };
+
+  const logout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem(`${storageKey}-session`);
+  };
+
+  const updateCurrentUser = user => {
+    setCurrentUser(user);
+    localStorage.setItem(`${storageKey}-session`, user.email);
+  };
 
   const selectedPerson = useMemo(() => people.find(person => person.id === selectedId) || null, [people, selectedId]);
 
@@ -1028,9 +1370,12 @@ function App() {
       recruitment: {
         ...person.recruitment,
         promotedAt: new Date().toISOString(),
-        steps: person.recruitment.steps.map(step => ({ ...step, completed: true })),
+        promotedBy: currentUser,
+        steps: person.recruitment.steps.map(step => ({ ...step, completed: true, approvedAt: step.approvedAt || new Date().toISOString(), approvedBy: step.approvedBy || currentUser })),
       },
       start: person.employmentDate || new Date().toISOString().slice(0, 10),
+      hiredAt: new Date().toISOString(),
+      hiredBy: currentUser,
     }));
     setSelectedId(null);
     setActive('Medarbetare');
@@ -1043,6 +1388,7 @@ function App() {
       recruitment: {
         ...person.recruitment,
         rejectedAt: new Date().toISOString(),
+        rejectedBy: currentUser,
         rejectedReason: person.recruitment?.rejectedReason || '',
       },
     }));
@@ -1052,13 +1398,21 @@ function App() {
   const page = useMemo(() => {
     const common = { people, groups, setPeople, setSelectedId };
     if (active === 'Översikt') return <Overview people={people} onOpenRecruitment={() => setNewRecruitmentOpen(true)} />;
-    if (active === 'Medarbetare') return <Employees people={people} groups={groups} query={query} setSelectedId={setSelectedId} onAdd={() => setNewRecruitmentOpen(true)} />;
-    if (active === 'Rekrytering') return <Recruitment people={people} setPeople={setPeople} setSelectedId={setSelectedId} retentionDays={retentionDays} onAdd={() => setNewRecruitmentOpen(true)} />;
+    if (active === 'Medarbetare') return <Employees people={people} groups={groups} query={query} setSelectedId={setSelectedId} onAdd={() => setNewEmployeeOpen(true)} />;
+    if (active === 'Rekrytering') return <Recruitment people={people} setPeople={setPeople} setSelectedId={setSelectedId} retentionDays={retentionDays} currentUser={currentUser} onAdd={() => setNewRecruitmentOpen(true)} />;
     if (active === 'Kalender') return <Calendar people={people} calendarEvents={calendarEvents} setCalendarEvents={setCalendarEvents} />;
     if (active === 'Grupper') return <Groups groups={groups} setGroups={setGroups} people={people} />;
     if (active === 'Import & export') return <ImportExport people={people} />;
-    return <Admin groups={groups} people={people} retentionDays={retentionDays} setRetentionDays={setRetentionDays} />;
-  }, [active, people, groups, query, retentionDays]);
+    return <Admin groups={groups} people={people} admins={admins} setAdmins={setAdmins} currentUser={currentUser} onCurrentUserUpdate={updateCurrentUser} retentionDays={retentionDays} setRetentionDays={setRetentionDays} />;
+  }, [active, people, groups, query, admins, currentUser, retentionDays]);
+
+  if (backendLoading) {
+    return <div className="login-shell"><section className="login-panel"><div className="login-brand"><strong>Folk<span>.</span></strong><small>Medarbetarkoll</small></div><p className="loading-state">Laddar data från backend...</p></section></div>;
+  }
+
+  if (!currentUser) {
+    return <LoginScreen users={admins} setUsers={setAdmins} onLogin={login} />;
+  }
 
   return <div className="app-shell">
     <aside className={`sidebar ${menu ? 'open' : ''}`}>
@@ -1072,19 +1426,21 @@ function App() {
         ['Import & export', ArrowUpDown],
         ['Administration', Settings],
       ].map(([label, Icon]) => <button key={label} className={active === label ? 'active' : ''} onClick={() => { setActive(label); setMenu(false); }}><Icon size={20}/><span>{label}</span></button>)}</nav>
-      <div className="sidebar-foot"><div className="mini-avatar">KA</div><span><b>Karin Andersson</b><small>Administratör</small></span></div>
+      <div className="sidebar-foot"><div className="mini-avatar">{userInitials(currentUser.name)}</div><span><b>{currentUser.name}</b><small>{currentUser.role}</small></span></div>
     </aside>
     <div className="main-wrap">
       <header className="topbar">
         <button className="mobile-menu" aria-label="Öppna meny" onClick={() => setMenu(!menu)}><Menu/></button>
         <div className="search"><Search size={18}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Sök medarbetare, grupp eller rekrytering"/></div>
         <button className="icon-btn" aria-label="Notiser"><Bell size={20}/></button>
-        <button className="user"><span>KA</span><b>Karin Andersson</b></button>
+        <button className="user"><span>{userInitials(currentUser.name)}</span><b>{currentUser.name}</b></button>
+        <button className="icon-btn" aria-label="Logga ut" onClick={logout}><LogOut size={19}/></button>
       </header>
-      <main>{page}</main>
+      <main>{backendError ? <div className="backend-alert">{backendError}</div> : null}{page}</main>
     </div>
-    {newRecruitmentOpen ? <Modal title="Ny Rekrytering" onClose={() => setNewRecruitmentOpen(false)}><PersonForm onClose={() => setNewRecruitmentOpen(false)} onSave={person => { setPeople(prev => [...prev, person]); setNewRecruitmentOpen(false); setActive('Rekrytering'); }} /></Modal> : null}
-    {selectedPerson ? <PersonDetail person={selectedPerson} setPeople={setPeople} groups={groups} onClose={() => setSelectedId(null)} onPromote={promoteCandidate} onReject={rejectCandidate} retentionDays={retentionDays} /> : null}
+    {newRecruitmentOpen ? <Modal title="Ny Rekrytering" onClose={() => setNewRecruitmentOpen(false)}><PersonForm actor={currentUser} onClose={() => setNewRecruitmentOpen(false)} onSave={person => { setPeople(prev => [...prev, person]); setNewRecruitmentOpen(false); setActive('Rekrytering'); }} /></Modal> : null}
+    {newEmployeeOpen ? <Modal title="Lägg till medarbetare" onClose={() => setNewEmployeeOpen(false)}><EmployeeForm groups={groups} actor={currentUser} onClose={() => setNewEmployeeOpen(false)} onSave={person => { setPeople(prev => [...prev, person]); setNewEmployeeOpen(false); setActive('Medarbetare'); }} /></Modal> : null}
+    {selectedPerson ? <PersonDetail person={selectedPerson} setPeople={setPeople} groups={groups} currentUser={currentUser} onClose={() => setSelectedId(null)} onPromote={promoteCandidate} onReject={rejectCandidate} retentionDays={retentionDays} /> : null}
   </div>;
 }
 
