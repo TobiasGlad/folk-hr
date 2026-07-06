@@ -1132,11 +1132,28 @@ function Groups({ groups, setGroups, people }) {
 
   return <>
     <PageHeader title="Grupper" subtitle="Sortera personer efter enhet, arbetsplats eller anställningsform" />
-    <form className="inline-add group-add" onSubmit={addGroup}><input value={name} onChange={e => setName(e.target.value)} placeholder="Namn på ny enhet"/><select value={type} onChange={e => setType(e.target.value)}>{initialGroupTypes.map(option => <option key={option}>{option}</option>)}</select><button className="primary"><Plus size={17}/>Skapa grupp</button></form>
+    <form className="panel group-create-panel" onSubmit={addGroup}>
+      <div className="panel-head"><div><h2>Skapa grupp</h2><p>Lägg till en enhet eller arbetsplats i organisationen.</p></div></div>
+      <div className="group-create-fields">
+        <label><span>Gruppnamn</span><input value={name} onChange={e => setName(e.target.value)} placeholder="Namn på ny enhet" required /></label>
+        <label><span>Typ</span><select value={type} onChange={e => setType(e.target.value)}>{initialGroupTypes.map(option => <option key={option}>{option}</option>)}</select></label>
+        <button className="primary"><Plus size={17}/>Skapa grupp</button>
+      </div>
+    </form>
     <section className="panel group-text-panel">
-      <div className="panel-head"><div><h2>Befintliga grupper</h2><p>Ren textlista med en redigeringsknapp per rad.</p></div><span>{groups.length} grupper</span></div>
+      <div className="panel-head"><div><h2>Befintliga grupper</h2></div><span className="tag">{groups.length} grupper</span></div>
       <div className="group-text-list">
-        {groups.map(group => <div className="group-text-row" key={group.id}><div className="group-text-main"><strong>{group.name}</strong><span>{group.type}</span><small>{people.filter(person => person.group === group.name).length} personer</small></div><button className="icon-btn" onClick={() => beginEdit(group)} aria-label={`Redigera ${group.name}`}><Pencil size={16}/></button>{editingId === group.id ? <div className="group-text-edit"><input className="group-name" value={draftName} onChange={e => setDraftName(e.target.value)} placeholder="Namn på enhet"/><select className="group-type" value={draftType} onChange={e => setDraftType(e.target.value)}>{initialGroupTypes.map(option => <option key={option}>{option}</option>)}</select><button className="primary small" onClick={() => saveEdit(group.id)}>Spara</button><button className="secondary small" onClick={cancelEdit}>Avbryt</button></div> : null}</div>)}
+        {groups.map(group => <div className="group-text-row" key={group.id}>
+          <div className="group-row-icon"><Building2 size={20}/></div>
+          <div className="group-text-main"><strong>{group.name}</strong><span>{group.type}</span></div>
+          <span className="group-member-count">{people.filter(person => person.group === group.name).length} personer</span>
+          <button type="button" className="secondary small" onClick={() => beginEdit(group)} aria-label={"Redigera " + group.name}><Pencil size={15}/>Redigera</button>
+          {editingId === group.id ? <div className="group-text-edit">
+            <label><span>Gruppnamn</span><input className="group-name" value={draftName} onChange={e => setDraftName(e.target.value)} placeholder="Namn på enhet" /></label>
+            <label><span>Typ</span><select className="group-type" value={draftType} onChange={e => setDraftType(e.target.value)}>{initialGroupTypes.map(option => <option key={option}>{option}</option>)}</select></label>
+            <div className="group-edit-actions"><button type="button" className="secondary small" onClick={cancelEdit}>Avbryt</button><button type="button" className="primary small" onClick={() => saveEdit(group.id)}>Spara ändringar</button></div>
+          </div> : null}
+        </div>)}
       </div>
     </section>
   </>;
