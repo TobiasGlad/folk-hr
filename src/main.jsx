@@ -1,51 +1,400 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
-  LayoutDashboard, Users, BriefcaseBusiness, ListChecks, Shapes, ArrowUpDown,
+  LayoutDashboard, Users, BriefcaseBusiness, Shapes, ArrowUpDown,
   Settings, Search, Bell, UserPlus, SlidersHorizontal, ChevronRight, CalendarDays,
   Check, LockKeyhole, Plus, X, Trash2, Upload, Download, Camera, FileText,
-  Building2, Clock3, ShieldCheck, Pencil, MoreHorizontal, Menu
+  Building2, Clock3, ShieldCheck, Pencil, MoreHorizontal, Menu, ListChecks
 } from 'lucide-react';
 import './styles.css';
 
-const initialSteps = ['CV', 'Registerutdrag', 'Provpass', 'Checklista'];
-const initialGroups = ['Örjanshuset', 'Skogshuset', 'Vikarier'];
-const initialPeople = [
-  { id: 1, name: 'Elin Berg', initials: 'EB', email: 'elin.berg@folk.se', phone: '070-182 31 40', group: 'Örjanshuset', role: 'Stödassistent', rate: 100, stage: 2, status: 'Rekrytering', start: '2026-08-18', las: '2027-02-18', color: '#d9e9e2' },
-  { id: 2, name: 'Marcus Lind', initials: 'ML', email: 'marcus.lind@folk.se', phone: '072-881 15 02', group: 'Skogshuset', role: 'Boendestödjare', rate: 80, stage: 1, status: 'Rekrytering', start: '2026-09-01', las: '2027-03-01', color: '#e6e0d8' },
-  { id: 3, name: 'Sara Ahmed', initials: 'SA', email: 'sara.ahmed@folk.se', phone: '073-491 44 88', group: 'Vikarier', role: 'Stödassistent', rate: 100, stage: 3, status: 'Rekrytering', start: '2026-07-15', las: '2027-01-15', color: '#e4dbe8' },
-  { id: 4, name: 'Oskar Persson', initials: 'OP', email: 'oskar.persson@folk.se', phone: '070-390 22 17', group: 'Örjanshuset', role: 'Samordnare', rate: 100, stage: 4, status: 'Anställd', start: '2025-12-01', las: '2026-08-24', color: '#dae2ec' },
-  { id: 5, name: 'Linnea Karlsson', initials: 'LK', email: 'linnea.karlsson@folk.se', phone: '076-228 18 19', group: 'Skogshuset', role: 'Stödassistent', rate: 75, stage: 4, status: 'Anställd', start: '2026-01-12', las: '2026-09-02', color: '#eee0d7' },
-  { id: 6, name: 'Jonas Nilsson', initials: 'JN', email: 'jonas.nilsson@folk.se', phone: '070-225 91 02', group: 'Vikarier', role: 'Timvikarie', rate: 40, stage: 4, status: 'Anställd', start: '2026-03-10', las: '2026-09-15', color: '#dbe8df' },
+// Första datamängden är lokal och fungerar som seed tills appen kopplas mot backend.
+const recruitmentStageLabels = ['CV', 'Registerutdrag', 'Provpass', 'Checklista'];
+const initialGroupTypes = ['LSS', 'HVB', 'Skola', 'Verksamhetsstöd', 'Assistent', 'Administration'];
+const initialGroups = [
+  { id: 1, name: 'Örjanshuset', type: 'LSS' },
+  { id: 2, name: 'Skogshuset', type: 'LSS' },
+  { id: 3, name: 'Vikarier', type: 'Verksamhetsstöd' },
 ];
+const initialPeopleSeed = [
+  { id: 1, name: 'Elin Berg', initials: 'EB', email: 'elin.berg@folk.se', phone: '070-182 31 40', group: 'Örjanshuset', role: 'Stödassistent', rate: 100, stage: 2, status: 'Rekrytering', start: '2026-08-18', employmentDate: '2026-08-18', probationEnd: '2027-02-18', color: '#d9e9e2' },
+  { id: 2, name: 'Marcus Lind', initials: 'ML', email: 'marcus.lind@folk.se', phone: '072-881 15 02', group: 'Skogshuset', role: 'Boendestödjare', rate: 80, stage: 1, status: 'Rekrytering', start: '2026-09-01', employmentDate: '2026-09-01', probationEnd: '2027-03-01', color: '#e6e0d8' },
+  { id: 3, name: 'Sara Ahmed', initials: 'SA', email: 'sara.ahmed@folk.se', phone: '073-491 44 88', group: 'Vikarier', role: 'Stödassistent', rate: 100, stage: 3, status: 'Rekrytering', start: '2026-07-15', employmentDate: '2026-07-15', probationEnd: '2027-01-15', color: '#e4dbe8' },
+  { id: 4, name: 'Oskar Persson', initials: 'OP', email: 'oskar.persson@folk.se', phone: '070-390 22 17', group: 'Örjanshuset', role: 'Samordnare', rate: 100, stage: 4, status: 'Anställd', start: '2025-12-01', employmentDate: '2025-12-01', probationEnd: '2026-08-24', color: '#dae2ec' },
+  { id: 5, name: 'Linnea Karlsson', initials: 'LK', email: 'linnea.karlsson@folk.se', phone: '076-228 18 19', group: 'Skogshuset', role: 'Stödassistent', rate: 75, stage: 4, status: 'Anställd', start: '2026-01-12', employmentDate: '2026-01-12', probationEnd: '2026-09-02', color: '#eee0d7' },
+  { id: 6, name: 'Jonas Nilsson', initials: 'JN', email: 'jonas.nilsson@folk.se', phone: '070-225 91 02', group: 'Vikarier', role: 'Timvikarie', rate: 40, stage: 4, status: 'Anställd', start: '2026-03-10', employmentDate: '2026-03-10', probationEnd: '2026-09-15', color: '#dbe8df' },
+];
+const storageKey = 'folk-hr-state-v5';
+const defaultRetentionDays = 30;
+const documentKinds = ['CV', 'Registerutdrag', 'Kvitto', 'Intyg', 'Avtal', 'Annat'];
 
-const navItems = [
-  ['Översikt', LayoutDashboard], ['Medarbetare', Users], ['Rekrytering', BriefcaseBusiness],
-  ['Checklistor', ListChecks], ['Grupper', Shapes], ['Import & export', ArrowUpDown], ['Administration', Settings]
-];
+function makeRecruitmentSteps(completedCount = 0, existing = []) {
+  return recruitmentStageLabels.map((label, index) => {
+    const current = existing[index] || {};
+    return {
+      id: current.id || `step-${index}`,
+      label,
+      note: current.note || '',
+      completed: typeof current.completed === 'boolean' ? current.completed : index < completedCount,
+      savedAt: current.savedAt || null,
+      file: current.file || null,
+      documentKind: current.documentKind || '',
+      documentLabel: current.documentLabel || '',
+    };
+  });
+}
+
+function constrainRecruitmentSteps(steps) {
+  let blocked = false;
+  return steps.map(step => {
+    if (blocked) {
+      return { ...step, completed: false };
+    }
+    if (!step.completed) {
+      blocked = true;
+    }
+    return step;
+  });
+}
+
+function normalizeDocument(doc, fallback = {}) {
+  if (!doc && !fallback) return null;
+  const name = doc?.name || fallback.name || 'Dokument';
+  const dataUrl = doc?.dataUrl || fallback.dataUrl || '';
+  const uploadedAt = doc?.uploadedAt || fallback.uploadedAt || fallback.createdAt || new Date().toISOString();
+  return {
+    id: doc?.id || fallback.id || `doc-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    name,
+    kind: doc?.kind || doc?.documentKind || fallback.kind || fallback.documentKind || doc?.type || fallback.type || 'Annat',
+    label: doc?.label || fallback.label || doc?.documentLabel || fallback.documentLabel || '',
+    note: doc?.note || fallback.note || '',
+    uploadedAt,
+    source: doc?.source || fallback.source || 'Medarbetare',
+    stepId: doc?.stepId || fallback.stepId || '',
+    stepLabel: doc?.stepLabel || fallback.stepLabel || '',
+    mimeType: doc?.mimeType || doc?.type || fallback.mimeType || fallback.type || '',
+    dataUrl,
+  };
+}
+
+function normalizeDocuments(documents = [], recruitmentSteps = []) {
+  const normalized = documents.map((doc, index) => normalizeDocument(doc, { id: doc?.id || `doc-${index}` })).filter(Boolean);
+  const derived = recruitmentSteps.flatMap(step => {
+    if (!step?.file) return [];
+    return [normalizeDocument(step.file, {
+      id: step.file.id || `step-doc-${step.id}`,
+      name: step.file.name || step.documentLabel || step.label || 'Dokument',
+      kind: step.documentKind || 'Annat',
+      label: step.documentLabel || step.label || '',
+      source: 'Rekrytering',
+      stepId: step.id,
+      stepLabel: step.label,
+      uploadedAt: step.savedAt || new Date().toISOString(),
+      mimeType: step.file.type || step.file.mimeType || '',
+      dataUrl: step.file.dataUrl || '',
+    })];
+  });
+  const seen = new Set();
+  return [...normalized, ...derived].filter(doc => {
+    const key = doc.dataUrl ? `${doc.kind}|${doc.name}|${doc.dataUrl}` : `${doc.kind}|${doc.name}|${doc.uploadedAt}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function createDocumentEntry(fileRecord, meta = {}) {
+  return normalizeDocument({
+    name: fileRecord.name,
+    mimeType: fileRecord.mimeType || fileRecord.type || '',
+    dataUrl: fileRecord.dataUrl,
+    kind: meta.kind || 'Annat',
+    label: meta.label || '',
+    note: meta.note || '',
+    source: meta.source || 'Medarbetare',
+    stepId: meta.stepId || '',
+    stepLabel: meta.stepLabel || '',
+  });
+}
+
+function applyDocumentUpload(person, fileRecord, meta = {}, stepIndex = null) {
+  const recruitment = person.recruitment || { steps: makeRecruitmentSteps(0, []) };
+  const steps = Array.isArray(recruitment.steps) ? recruitment.steps.map((step, index) => {
+    if (index !== stepIndex) return step;
+    return {
+      ...step,
+      file: {
+        name: fileRecord.name,
+        type: fileRecord.mimeType || fileRecord.type || '',
+        dataUrl: fileRecord.dataUrl,
+      },
+      documentKind: meta.kind || step.documentKind || 'Annat',
+      documentLabel: meta.label || step.documentLabel || '',
+    };
+  }) : recruitment.steps;
+  const documents = normalizeDocuments([...(person.documents || []), createDocumentEntry(fileRecord, meta)], steps);
+  return normalizePerson({
+    ...person,
+    recruitment: {
+      ...recruitment,
+      steps,
+    },
+    documents,
+  });
+}
+
+function makeDocumentDownloadName(document) {
+  return document.name || `dokument-${document.kind || 'annat'}`;
+}
+
+function normalizePerson(person) {
+  const recruitment = person.recruitment || {};
+  const stage = Number(person.stage || 0);
+  const steps = constrainRecruitmentSteps(makeRecruitmentSteps(stage, recruitment.steps || []));
+  if (person.status === 'Anställd') {
+    steps.forEach(step => { step.completed = true; });
+  }
+  const documents = normalizeDocuments(Array.isArray(person.documents) ? person.documents : [], steps);
+  return {
+    ...person,
+    documents,
+    recruitment: {
+      steps,
+      rejectedAt: recruitment.rejectedAt || null,
+      rejectedReason: recruitment.rejectedReason || '',
+      promotedAt: recruitment.promotedAt || null,
+    },
+  };
+}
+
+function normalizePeople(people) {
+  return people.map(normalizePerson);
+}
+
+function createCandidateFromForm(data) {
+  const initials = data.name.split(' ').map(part => part[0]).slice(0, 2).join('').toUpperCase();
+  return normalizePerson({
+    id: Date.now(),
+    name: data.name,
+    initials,
+    email: data.email,
+    phone: data.phone,
+    group: '',
+    role: '',
+    rate: Number(data.rate),
+    stage: 0,
+    status: 'Rekrytering',
+    start: data.employmentDate || new Date().toISOString().slice(0, 10),
+    employmentDate: data.employmentDate || '',
+    probationEnd: data.probationEnd || '',
+    noticeDate: data.noticeDate || '',
+    terminationDate: data.terminationDate || '',
+    color: '#dce9e3',
+  });
+}
+
+function futureDateISO(days) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function loadState() {
+  const fallback = {
+    people: normalizePeople(initialPeopleSeed),
+    groups: initialGroups,
+    calendarEvents: [],
+    retentionDays: defaultRetentionDays,
+  };
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return {
+      people: normalizePeople(Array.isArray(parsed.people) ? parsed.people : fallback.people),
+      groups: Array.isArray(parsed.groups) && parsed.groups.length ? parsed.groups : fallback.groups,
+      calendarEvents: Array.isArray(parsed.calendarEvents) ? parsed.calendarEvents : fallback.calendarEvents,
+      retentionDays: Number(parsed.retentionDays) || fallback.retentionDays,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function isWithinRetention(dateIso, retentionDays) {
+  if (!dateIso) return false;
+  const ms = new Date(dateIso).getTime();
+  if (Number.isNaN(ms)) return false;
+  return Date.now() - ms <= retentionDays * 24 * 60 * 60 * 1000;
+}
+
+function pruneRejectedPeople(people, retentionDays) {
+  const next = people.filter(person => person.status !== 'Avvisad' || isWithinRetention(person.recruitment?.rejectedAt, retentionDays));
+  return next.length === people.length ? people : next;
+}
+
+function groupOrder(allGroups, presentGroups) {
+  const known = allGroups.filter(group => presentGroups.includes(groupLabel(group)));
+  const knownNames = known.map(groupLabel);
+  const extras = presentGroups.filter(group => !knownNames.includes(group)).sort((a, b) => a.localeCompare(b, 'sv'));
+  return [...known, ...extras];
+}
+
+function groupLabel(group) {
+  return typeof group === 'string' ? group : group?.name || '';
+}
+
+function groupType(group) {
+  return typeof group === 'string' ? 'LSS' : group?.type || 'LSS';
+}
+
+function getRecruitmentSteps(person) {
+  return makeRecruitmentSteps(person.stage || 0, person.recruitment?.steps || []);
+}
+
+function completedStepCount(person) {
+  return getRecruitmentSteps(person).filter(step => step.completed).length;
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve({ name: file.name, mimeType: file.type, dataUrl: reader.result });
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function addDays(dateIso, days) {
+  if (!dateIso) return '';
+  const date = new Date(dateIso);
+  if (Number.isNaN(date.getTime())) return '';
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function formatDate(dateIso) {
+  if (!dateIso) return '-';
+  const date = new Date(dateIso);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function parseCsv(text) {
+  const lines = text.trim().split(/\r?\n/).filter(Boolean);
+  if (!lines.length) return [];
+  const splitLine = line => {
+    const cells = [];
+    let current = '';
+    let quoted = false;
+    for (let i = 0; i < line.length; i += 1) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (quoted && line[i + 1] === '"') {
+          current += '"';
+          i += 1;
+        } else {
+          quoted = !quoted;
+        }
+      } else if (ch === ',' && !quoted) {
+        cells.push(current);
+        current = '';
+      } else {
+        current += ch;
+      }
+    }
+    cells.push(current);
+    return cells.map(value => value.trim());
+  };
+  const headers = splitLine(lines[0]).map(h => h.toLowerCase());
+  return lines.slice(1).map(line => {
+    const cells = splitLine(line);
+    return headers.reduce((acc, header, index) => {
+      acc[header] = cells[index] || '';
+      return acc;
+    }, {});
+  });
+}
+
+function buildCalendarEvents(people, manualEvents = []) {
+  const derived = people.flatMap(person => {
+    const employmentDate = person.employmentDate || person.start;
+    const probationEnd = person.probationEnd || addDays(employmentDate, 183);
+    const events = [];
+    if (employmentDate) {
+      events.push({
+        id: `employment-${person.id}`,
+        title: person.name,
+        type: 'Anställningsdatum',
+        date: employmentDate,
+        personId: person.id,
+        group: person.group,
+        note: `${person.role} · ${person.status}`,
+      });
+    }
+    if (probationEnd) {
+      events.push({
+        id: `probation-${person.id}`,
+        title: person.name,
+        type: 'Provanställning upphör',
+        date: probationEnd,
+        personId: person.id,
+        group: person.group,
+        note: person.status === 'Anställd' ? 'Övergår till anställning' : 'Planerat omvandlingsdatum',
+      });
+    }
+    if (person.noticeDate) {
+      events.push({
+        id: `notice-${person.id}`,
+        title: person.name,
+        type: 'Uppsägning inlämnad',
+        date: person.noticeDate,
+        personId: person.id,
+        group: person.group,
+        note: person.terminationDate ? `Sista dag ${person.terminationDate}` : '',
+      });
+    }
+    if (person.terminationDate) {
+      events.push({
+        id: `termination-${person.id}`,
+        title: person.name,
+        type: 'Sista anställningsdag',
+        date: person.terminationDate,
+        personId: person.id,
+        group: person.group,
+        note: person.noticeDate ? `Uppsägning ${person.noticeDate}` : '',
+      });
+    }
+    return events;
+  });
+  return [...derived, ...manualEvents].filter(event => event.date).sort((a, b) => new Date(a.date) - new Date(b.date) || a.type.localeCompare(b.type, 'sv'));
+}
+
+function exportCalendarCsv(events) {
+  const header = 'Datum,Titel,Typ,Grupp,Medarbetar-ID,Anteckning';
+  const rows = events.map(event => [event.date, event.title, event.type, event.group || '', event.personId || '', event.note || ''].map(value => `"${String(value).replaceAll('"', '""')}"`).join(','));
+  return `${header}\n${rows.join('\n')}`;
+}
+
+function importCalendarCsv(text) {
+  return parseCsv(text).map((row, index) => ({
+    id: row.id || `manual-${Date.now()}-${index}`,
+    title: row.titel || row.title || 'Kalenderhändelse',
+    type: row.typ || row.type || 'Manuell händelse',
+    date: row.datum || row.date || '',
+    group: row.grupp || row.group || '',
+    personId: row['medarbetar-id'] || row.personid || row.personId || '',
+    note: row.anteckning || row.note || '',
+  })).filter(event => event.date);
+}
 
 function Avatar({ person, large = false }) {
+  // Initialerna räcker i listvyerna och undviker att appen blir beroende av bildhantering.
   return <div className={`avatar ${large ? 'avatar-lg' : ''}`} style={{ background: person.color }}>{person.initials}</div>;
 }
 
-function Progress({ person, steps, compact = false, onAdvance }) {
-  return <div className={`progress ${compact ? 'compact' : ''}`} aria-label={`Rekryteringssteg för ${person.name}`}>
-    {steps.map((step, index) => {
-      const done = index < person.stage;
-      const current = index === person.stage;
-      const locked = index > person.stage;
-      return <div className="step-wrap" key={step}>
-        {index > 0 ? <span className={`step-line ${done ? 'done' : ''}`} /> : null}
-        <button className={`step ${done ? 'done' : ''} ${current ? 'current' : ''}`} disabled={locked || done || !onAdvance} onClick={() => onAdvance?.(person.id)} title={locked ? 'Föregående steg måste slutföras först' : step}>
-          {done ? <Check size={15}/> : locked ? <LockKeyhole size={12}/> : <span className="dot" />}
-        </button>
-        {!compact ? <small>{step}</small> : null}
-      </div>;
-    })}
-  </div>;
-}
-
 function Modal({ title, children, onClose, wide = false }) {
+  // Gemensam modalram för formulär, rekryteringssteg och personprofiler.
   return <div className="modal-backdrop" onMouseDown={onClose}>
     <section className={`modal ${wide ? 'wide' : ''}`} onMouseDown={e => e.stopPropagation()} role="dialog" aria-modal="true">
       <header><h2>{title}</h2><button className="icon-btn" onClick={onClose} aria-label="Stäng"><X size={20}/></button></header>
@@ -54,126 +403,689 @@ function Modal({ title, children, onClose, wide = false }) {
   </div>;
 }
 
-function PersonForm({ groups, onSave, onClose }) {
+function PageHeader({ title, subtitle, onAdd, addLabel = 'Ny medarbetare' }) {
+  // Återanvänds i alla vyer så att rubrik, undertitel och primär handling beter sig likadant.
+  return <div className="page-head"><div><h1>{title}</h1>{subtitle ? <p>{subtitle}</p> : null}</div>{onAdd ? <button className="primary" onClick={onAdd}><UserPlus size={18}/>{addLabel}</button> : null}</div>;
+}
+
+function Progress({ person, compact = false }) {
+  // Stegindikatorn läser samma rekryteringsdata som används i kandidatmodulen.
+  const steps = getRecruitmentSteps(person);
+  const doneCount = steps.filter(step => step.completed).length;
+  return <div className={`progress ${compact ? 'compact' : ''}`} aria-label={`Rekryteringssteg för ${person.name}`}>
+    {steps.map((step, index) => {
+      const done = step.completed;
+      const current = index === doneCount && !done;
+      const locked = index > doneCount;
+      return <div className="step-wrap" key={step.id}>
+        {index > 0 ? <span className={`step-line ${done ? 'done' : ''}`} /> : null}
+        <button className={`step ${done ? 'done' : ''} ${current ? 'current' : ''}`} disabled={locked || done} title={locked ? 'Föregående steg måste slutföras först' : step.label}>
+          {done ? <Check size={15}/> : locked ? <LockKeyhole size={12}/> : <span className="dot" />}
+        </button>
+        {!compact ? <small>{step.label}</small> : null}
+      </div>;
+    })}
+  </div>;
+}
+
+function PersonForm({ onSave, onClose }) {
+  // Formuläret skapar en ny rekryteringskandidat med de fält resten av appen förväntar sig.
   const submit = e => {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(e.currentTarget));
-    onSave({ ...data, rate: Number(data.rate), initials: data.name.split(' ').map(x => x[0]).slice(0,2).join('').toUpperCase(), stage: 0, status: 'Rekrytering', color: '#dce9e3' });
+    onSave(createCandidateFromForm(data));
   };
+
   return <form className="form" onSubmit={submit}>
     <div className="photo-upload"><Camera size={22}/><span>Lägg till porträttbild</span><input type="file" accept="image/*" aria-label="Porträttbild" /></div>
     <label>Fullständigt namn<input name="name" required placeholder="Förnamn Efternamn" /></label>
     <div className="form-grid"><label>E-post<input type="email" name="email" required placeholder="namn@organisation.se" /></label><label>Telefon<input name="phone" required placeholder="070-000 00 00" /></label></div>
-    <div className="form-grid"><label>Grupp<select name="group">{groups.map(g => <option key={g}>{g}</option>)}</select></label><label>Tjänstgöringsgrad<input name="rate" type="number" min="0" max="100" defaultValue="100" /></label></div>
-    <label>Roll<input name="role" required placeholder="Stödassistent" /></label>
+    <label>Tjänstgöringsgrad<input name="rate" type="number" min="0" max="100" defaultValue="100" /></label>
+    <div className="form-grid"><label>Anställningsdatum<input name="employmentDate" type="date" /></label><label>Provanställning upphör<input name="probationEnd" type="date" /></label></div>
+    <div className="form-grid"><label>Uppsägning inlämnad<input name="noticeDate" type="date" /></label><label>Sista anställningsdag<input name="terminationDate" type="date" /></label></div>
     <div className="form-actions"><button type="button" className="secondary" onClick={onClose}>Avbryt</button><button className="primary">Skapa kandidat</button></div>
   </form>;
 }
 
-function PageHeader({ title, subtitle, onAdd }) {
-  return <div className="page-head"><div><h1>{title}</h1>{subtitle ? <p>{subtitle}</p> : null}</div>{onAdd ? <button className="primary" onClick={onAdd}><UserPlus size={18}/>Ny medarbetare</button> : null}</div>;
-}
+function Overview({ people, onOpenRecruitment }) {
+  // Översikten visar en snabb bild av organisationen och pågående rekryteringar.
+  const active = people.filter(person => person.status === 'Anställd');
+  const candidates = people.filter(person => person.status === 'Rekrytering');
+  const deadlines = active.slice(0, 4);
 
-function Overview({ people, steps, setPeople, onOpen }) {
-  const recruiting = people.filter(p => p.status === 'Rekrytering');
-  const dates = people.filter(p => p.status === 'Anställd').slice(0,4);
-  const advance = id => setPeople(prev => prev.map(p => p.id === id ? { ...p, stage: Math.min(p.stage + 1, steps.length) } : p));
   return <>
-    <PageHeader title="Översikt" onAdd={onOpen}/>
+    <PageHeader title="Översikt" onAdd={onOpenRecruitment} addLabel="Ny Rekrytering" />
     <div className="metrics">
-      <div><Users/><span><b>{people.filter(p => p.status === 'Anställd').length}</b>Aktiva medarbetare</span></div>
-      <div><BriefcaseBusiness/><span><b>{recruiting.length}</b>I rekrytering</span></div>
-      <div className="urgent"><CalendarDays/><span><b>{dates.length}</b>LAS inom 60 dagar</span></div>
+      <div><Users/><span><b>{active.length}</b>Aktiva medarbetare</span></div>
+      <div><BriefcaseBusiness/><span><b>{candidates.length}</b>I rekrytering</span></div>
+      <div className="urgent"><CalendarDays/><span><b>{deadlines.length}</b>Provanställning inom 60 dagar</span></div>
     </div>
     <div className="dashboard-grid">
       <section className="panel recruitment"><div className="panel-head"><h2>Pågående rekryteringar</h2><button className="secondary small"><SlidersHorizontal size={16}/>Filter</button></div>
         <div className="recruit-head"><span>Namn</span><span>Grupp</span><span>Nästa steg</span><span>Omfattning</span><span>Status</span></div>
-        {recruiting.map(person => <div className="recruit-row" key={person.id}>
+        {candidates.map(person => <div className="recruit-row" key={person.id}>
           <span className="person-cell"><Avatar person={person}/><span><b>{person.name}</b><small>{person.role}</small></span></span>
-          <span>{person.group}</span><Progress person={person} steps={steps} onAdvance={advance}/><span>{person.rate} %</span><span className="status"><i/>Pågående<ChevronRight size={17}/></span>
+          <span>{person.group}</span><Progress person={person} compact /><span>{person.rate} %</span><span className="status"><i/>Pågående<ChevronRight size={17}/></span>
         </div>)}
       </section>
       <aside className="panel deadlines"><div className="panel-head"><h2>Viktiga datum</h2></div>
-        {dates.map((p, i) => <button className="deadline" key={p.id}><span className={i === dates.length - 1 ? 'red' : ''}/><div><b>{p.name}</b><small>{i < 2 ? 'Provanställning slutar' : 'LAS 60-dagarsgräns'}</small><em><CalendarDays size={14}/>{new Date(p.las).toLocaleDateString('sv-SE', {day:'numeric', month:'short', year:'numeric'})}</em></div><ChevronRight size={17}/></button>)}
+        {deadlines.map((p, i) => <button className="deadline" key={p.id}><span className={i === deadlines.length - 1 ? 'red' : ''}/><div><b>{p.name}</b><small>Provanställning slutar</small><em><CalendarDays size={14}/>{new Date(p.probationEnd || addDays(p.employmentDate || p.start, 183)).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', year: 'numeric' })}</em></div><ChevronRight size={17}/></button>)}
       </aside>
     </div>
   </>;
 }
 
-function Employees({ people, query, setSelected }) {
-  const rows = people.filter(p => p.status === 'Anställd' && `${p.name} ${p.group} ${p.role}`.toLowerCase().includes(query.toLowerCase()));
-  return <><PageHeader title="Medarbetare" subtitle={`${rows.length} aktiva profiler`}/><section className="panel list-panel"><div className="panel-head"><h2>Alla medarbetare</h2><button className="secondary small"><SlidersHorizontal size={16}/>Filtrera</button></div>
-    <div className="employee-head"><span>Medarbetare</span><span>Grupp</span><span>Tjänstgöringsgrad</span><span>LAS / tillsvidare</span><span/></div>
-    {rows.map(p => <button className="employee-row" key={p.id} onClick={() => setSelected(p)}><span className="person-cell"><Avatar person={p}/><span><b>{p.name}</b><small>{p.role}</small></span></span><span>{p.group}</span><span>{p.rate} %</span><span>{new Date(p.las).toLocaleDateString('sv-SE')}</span><ChevronRight size={17}/></button>)}
-  </section></>;
+function Employees({ people, groups, query, setSelectedId, onAdd }) {
+  // Medarbetarvyn filtrerar först och grupperar sedan så att listan går att läsa snabbt.
+  const normalized = query.toLowerCase();
+  const rows = people.filter(person => person.status === 'Anställd' && `${person.name} ${person.group} ${person.role}`.toLowerCase().includes(normalized));
+  const grouped = rows.reduce((acc, person) => {
+    acc[person.group] = acc[person.group] || [];
+    acc[person.group].push(person);
+    return acc;
+  }, {});
+  const orderedGroups = groupOrder(groups, Object.keys(grouped));
+
+  return <>
+    <PageHeader title="Medarbetare" subtitle={`${rows.length} aktiva profiler`} onAdd={onAdd} />
+    <section className="panel list-panel">
+      <div className="panel-head"><h2>Alla medarbetare</h2><button className="secondary small"><SlidersHorizontal size={16}/>Filtrera</button></div>
+      <div className="employee-head"><span>Medarbetare</span><span>Grupp</span><span>Tjänstgöringsgrad</span><span>Provanställning upphör</span><span/></div>
+      {rows.length ? orderedGroups.map(group => { const groupName = groupLabel(group); return <div key={groupName} className="group-section"><div className="group-section-head"><h3>{groupName}</h3><span>{(grouped[groupName] || []).length} personer</span></div>{(grouped[groupName] || []).map(person => <button className="employee-row" key={person.id} onClick={() => setSelectedId(person.id)}><span className="person-cell"><Avatar person={person}/><span><b>{person.name}</b><small>{person.role}</small></span></span><span>{person.group}</span><span>{person.rate} %</span><span>{person.probationEnd ? new Date(person.probationEnd).toLocaleDateString('sv-SE') : '-'}</span><ChevronRight size={17}/></button>)}</div>; }) : <div className="empty-state">Inga aktiva medarbetare matchar sökningen.</div>}
+    </section>
+  </>;
 }
 
-function Recruitment({ people, steps, setPeople, setSelected }) {
-  const candidates = people.filter(p => p.status === 'Rekrytering');
-  const advance = id => setPeople(prev => prev.map(p => p.id === id ? { ...p, stage: Math.min(p.stage + 1, steps.length) } : p));
-  return <><PageHeader title="Rekrytering" subtitle="Varje steg låser upp nästa när det är godkänt"/><div className="candidate-list">
-    {candidates.map(p => <section className="candidate" key={p.id}><button className="candidate-main" onClick={() => setSelected(p)}><Avatar person={p} large/><span><h3>{p.name}</h3><p>{p.role} · {p.group} · {p.rate} %</p></span></button><Progress person={p} steps={steps} onAdvance={advance}/><button className="secondary small" onClick={() => advance(p.id)} disabled={p.stage >= steps.length}><Check size={16}/>{p.stage >= steps.length ? 'Klar för anställning' : `Godkänn ${steps[p.stage]}`}</button></section>)}
-  </div></>;
+function Calendar({ people, calendarEvents, setCalendarEvents }) {
+  // Kalendern kombinerar personbundna datum med manuellt importerade händelser.
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState('Alla');
+  const allEvents = useMemo(() => buildCalendarEvents(people, calendarEvents), [people, calendarEvents]);
+  const normalized = query.toLowerCase();
+  const filtered = allEvents.filter(event => {
+    const matchesQuery = `${event.title} ${event.type} ${event.group} ${event.note}`.toLowerCase().includes(normalized);
+    const matchesFilter = filter === 'Alla' || event.type === filter;
+    return matchesQuery && matchesFilter;
+  });
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const upcoming = filtered.filter(event => new Date(event.date) >= today).slice(0, 5);
+  const typeOptions = ['Alla', ...Array.from(new Set(allEvents.map(event => event.type)))];
+  const grouped = filtered.reduce((acc, event) => {
+    const month = new Date(`${event.date}T00:00:00`).toLocaleDateString('sv-SE', { month: 'long', year: 'numeric' });
+    acc[month] = acc[month] || [];
+    acc[month].push(event);
+    return acc;
+  }, {});
+  const months = Object.keys(grouped).sort((a, b) => new Date(grouped[a][0].date) - new Date(grouped[b][0].date));
+
+  const handleImport = async event => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    const imported = importCalendarCsv(text);
+    setCalendarEvents(prev => [...prev, ...imported]);
+    event.target.value = '';
+  };
+
+  const exportCsv = () => {
+    const csv = exportCalendarCsv(allEvents);
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'kalender.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return <>
+    <PageHeader title="Kalender" subtitle="Anställning, provanställning, uppsägning och importerade händelser" />
+    <div className="metrics calendar-metrics">
+      <div><CalendarDays/><span><b>{allEvents.length}</b>Datum i kalendern</span></div>
+      <div><Clock3/><span><b>{upcoming.length}</b>Kommande datum</span></div>
+      <div><Download/><span><b>{calendarEvents.length}</b>Importerade rader</span></div>
+    </div>
+    <section className="panel calendar-toolbar">
+      <div className="calendar-controls">
+        <div className="search calendar-search"><Search size={18}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Sök datum, person eller typ"/></div>
+        <label className="calendar-select"><span>Typ</span><select value={filter} onChange={e => setFilter(e.target.value)}>{typeOptions.map(option => <option key={option}>{option}</option>)}</select></label>
+        <label className="secondary file-button"><Upload size={16}/>Importera CSV<input type="file" accept=".csv" onChange={handleImport} /></label>
+        <button className="primary" onClick={exportCsv}><Download size={16}/>Exportera CSV</button>
+      </div>
+    </section>
+    <div className="calendar-grid">
+      <section className="panel calendar-list">
+        <div className="panel-head"><div><h2>Alla datum</h2><p>Sorterat per månad och filtrerat i realtid.</p></div></div>
+        {months.length ? months.map(month => <div key={month} className="calendar-month"><div className="calendar-month-head"><h3>{month}</h3><span>{grouped[month].length} händelser</span></div>{grouped[month].map(event => <div className="calendar-row" key={event.id}><div className="calendar-date"><b>{formatDate(event.date)}</b><small>{event.type}</small></div><div className="calendar-main"><strong>{event.title}</strong><span>{event.group || 'Intern kalender'}{event.note ? ` · ${event.note}` : ''}</span></div><ChevronRight size={17}/></div>)}</div>) : <div className="empty-state">Inga datum matchar filtret.</div>}
+      </section>
+      <aside className="panel calendar-side">
+        <div className="panel-head"><h2>Kommande</h2></div>
+        {upcoming.length ? upcoming.map(event => <div className="calendar-upcoming" key={`${event.id}-upcoming`}><span className="tag">{event.type}</span><b>{event.title}</b><small>{formatDate(event.date)}</small></div>) : <div className="empty-state">Inga kommande datum.</div>}
+      </aside>
+    </div>
+  </>;
 }
 
-function ChecklistEditor({ steps, setSteps }) {
-  const [newStep, setNewStep] = useState('');
-  const add = e => { e.preventDefault(); if (newStep.trim()) { setSteps(s => [...s, newStep.trim()]); setNewStep(''); } };
-  return <><PageHeader title="Checklistor" subtitle="Ordningen styr rekryteringsflödet"/><section className="panel settings-panel"><div className="panel-head"><div><h2>Anställningskrav</h2><p>Kandidaten kan inte gå vidare förrän föregående punkt är godkänd.</p></div></div>
-    <div className="step-list">{steps.map((s,i) => <div key={`${s}-${i}`}><span className="drag"><MoreHorizontal/><b>{i+1}</b></span><span><strong>{s}</strong><small>{i === 0 ? 'Första obligatoriska steget' : `Låses upp efter ${steps[i-1]}`}</small></span><button className="icon-btn danger" onClick={() => setSteps(x => x.filter((_,j) => j !== i))} aria-label={`Ta bort ${s}`}><Trash2 size={17}/></button></div>)}</div>
-    <form className="inline-add" onSubmit={add}><input value={newStep} onChange={e => setNewStep(e.target.value)} placeholder="Nytt steg, t.ex. Referenser"/><button className="primary"><Plus size={17}/>Lägg till steg</button></form>
-  </section></>;
+function Recruitment({ people, setPeople, setSelectedId, retentionDays, onAdd }) {
+  // Rekryteringsvyn är nu den enda platsen där kandidater går igenom steg, filer och beslut.
+  const activeCandidates = people.filter(person => person.status === 'Rekrytering');
+  const archivedCandidates = people.filter(person => person.status === 'Avvisad' && isWithinRetention(person.recruitment?.rejectedAt, retentionDays));
+
+  const rejectCandidate = id => {
+    setPeople(prev => prev.map(person => person.id === id ? {
+      ...person,
+      status: 'Avvisad',
+      recruitment: {
+        ...person.recruitment,
+        rejectedAt: new Date().toISOString(),
+        rejectedReason: person.recruitment?.rejectedReason || '',
+      },
+    } : person));
+  };
+
+  return <>
+    <PageHeader title="Rekrytering" subtitle="Steg, filer och beslut samlas per kandidat" onAdd={onAdd} addLabel="Ny Rekrytering" />
+    <div className="metrics recruitment-metrics">
+      <div><BriefcaseBusiness/><span><b>{activeCandidates.length}</b>Pågående kandidater</span></div>
+      <div><Clock3/><span><b>{archivedCandidates.length}</b>Avvisade i arkiv</span></div>
+      <div><Check/><span><b>{recruitmentStageLabels.length}</b>Steg i flödet</span></div>
+    </div>
+    <section className="panel recruitment-panel">
+      <div className="panel-head"><div><h2>Pågående kandidater</h2><p>Öppna en kandidat för att fylla i stegen och fatta beslut.</p></div></div>
+      <div className="candidate-list">
+        {activeCandidates.length ? activeCandidates.map(person => <article className="candidate" key={person.id}>
+          <button className="candidate-main" onClick={() => setSelectedId(person.id)}>
+            <Avatar person={person} large />
+            <span>
+              <h3>{person.name}</h3>
+              <p>{person.role} · {person.group} · {person.rate} %</p>
+            </span>
+          </button>
+          <div className="candidate-body">
+            <Progress person={person} />
+            <div className="candidate-actions">
+              <button className="secondary small" onClick={() => setSelectedId(person.id)}><Pencil size={15}/>Öppna</button>
+              <button className="secondary small danger" onClick={() => rejectCandidate(person.id)}><X size={15}/>Avvisa</button>
+            </div>
+          </div>
+        </article>) : <div className="empty-state">Inga kandidater är aktiva just nu.</div>}
+      </div>
+    </section>
+    <section className="panel archive-panel">
+      <div className="panel-head"><div><h2>Avvisade kandidater</h2><p>Sparas i {retentionDays} dagar innan de städas bort automatiskt.</p></div></div>
+      <div className="archive-list">
+        {archivedCandidates.length ? archivedCandidates.map(person => <button className="archive-row" key={person.id} onClick={() => setSelectedId(person.id)}>
+          <span className="person-cell"><Avatar person={person}/><span><b>{person.name}</b><small>{person.role}</small></span></span>
+          <span>{person.group}</span>
+          <span>{person.recruitment?.rejectedAt ? new Date(person.recruitment.rejectedAt).toLocaleDateString('sv-SE') : '-'}</span>
+          <ChevronRight size={17}/>
+        </button>) : <div className="empty-state">Inga avvisade kandidater inom sparad tidsperiod.</div>}
+      </div>
+    </section>
+  </>;
+}
+
+function RecruitmentStepCard({ stageLabel, step, index, locked, onChange, onSave, onUpload }) {
+  const [documentKind, setDocumentKind] = useState(step.documentKind || documentKinds[0]);
+  const [documentLabel, setDocumentLabel] = useState(step.documentLabel || '');
+
+  useEffect(() => {
+    setDocumentKind(step.documentKind || documentKinds[0]);
+    setDocumentLabel(step.documentLabel || '');
+  }, [step.id, step.documentKind, step.documentLabel]);
+
+  const handleFile = async event => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const nextFile = await readFileAsDataUrl(file);
+    onUpload(index, nextFile, { kind: documentKind, label: documentLabel });
+    event.target.value = '';
+  };
+
+  return <section className="step-card">
+    <div className="step-card-head">
+      <div><strong>{index + 1}. {stageLabel}</strong><small>{step.completed ? 'Klar' : locked ? 'Låst tills föregående steg är klart' : 'Pågående'}</small></div>
+      <label className="step-toggle"><input type="checkbox" checked={step.completed} disabled={locked} onChange={e => onChange(index, { completed: e.target.checked })} /> Klar</label>
+    </div>
+    <label className="step-field"><span>Anteckning</span><textarea rows="3" value={step.note} disabled={locked} onChange={e => onChange(index, { note: e.target.value })} placeholder="Skriv beslut, observationer eller nästa åtgärd..." /></label>
+    <div className="document-upload-grid">
+      <label>Dokumenttyp<select value={documentKind} disabled={locked} onChange={e => setDocumentKind(e.target.value)}>{documentKinds.map(kind => <option key={kind} value={kind}>{kind}</option>)}</select></label>
+      <label>Benämning<input value={documentLabel} disabled={locked} onChange={e => setDocumentLabel(e.target.value)} placeholder="CV, intyg, kvitto..." /></label>
+    </div>
+    <div className="step-file-row">
+      <label className={`secondary file-button ${locked ? 'disabled' : ''}`}><Upload size={16}/>Ladda upp fil<input type="file" disabled={locked} onChange={handleFile} /></label>
+      <span className="file-chip">{step.file?.name ? `${step.documentKind || 'Dokument'} · ${step.file.name}` : 'Ingen fil uppladdad'}</span>
+    </div>
+    <div className="step-card-actions">
+      <button type="button" className="secondary small" disabled={locked} onClick={() => onSave(index)}><Check size={15}/>Spara steg</button>
+      {step.savedAt ? <span className="tag">Sparad {new Date(step.savedAt).toLocaleDateString('sv-SE')}</span> : <span className="tag muted">Inte sparad</span>}
+    </div>
+  </section>;
+}
+
+function DocumentShelf({ person, setPeople, title, subtitle, uploadLabel = 'Ladda upp fil', stepIndex = null }) {
+  const documents = person.documents || [];
+  const [kind, setKind] = useState(documentKinds[0]);
+  const [label, setLabel] = useState('');
+
+  const handleUpload = async event => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const fileRecord = await readFileAsDataUrl(file);
+    setPeople(prev => prev.map(current => current.id === person.id ? applyDocumentUpload(current, fileRecord, {
+      kind,
+      label,
+      source: stepIndex === null ? 'Medarbetare' : 'Rekrytering',
+      stepId: stepIndex === null ? '' : current.recruitment?.steps?.[stepIndex]?.id || '',
+      stepLabel: stepIndex === null ? '' : current.recruitment?.steps?.[stepIndex]?.label || '',
+    }, stepIndex) : current));
+    setKind(documentKinds[0]);
+    setLabel('');
+    event.target.value = '';
+  };
+
+  return <section className="document-section">
+    <div className="panel-head document-section-head"><div><h2>{title}</h2>{subtitle ? <p>{subtitle}</p> : null}</div></div>
+    <div className="document-list">
+      {documents.length ? documents.map(doc => <div className="document-row" key={doc.id}>
+        <div className="document-row-main">
+          <strong>{doc.name}</strong>
+          <span>{doc.kind}{doc.label ? ` · ${doc.label}` : ''}</span>
+          <small>{doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString('sv-SE') : 'Okänt datum'}</small>
+        </div>
+        <a className="secondary small" href={doc.dataUrl} download={makeDocumentDownloadName(doc)}><Download size={15}/>Hämta</a>
+      </div>) : <div className="empty-state">Inga uppladdade dokument ännu.</div>}
+    </div>
+    <div className="document-upload-grid">
+      <label>Dokumenttyp<select value={kind} onChange={e => setKind(e.target.value)}>{documentKinds.map(option => <option key={option} value={option}>{option}</option>)}</select></label>
+      <label>Benämning<input value={label} onChange={e => setLabel(e.target.value)} placeholder="CV, registerutdrag, intyg..." /></label>
+    </div>
+    <label className="secondary file-button document-upload-button"><Upload size={16}/>{uploadLabel}<input type="file" onChange={handleUpload} /></label>
+  </section>;
+}
+
+function CandidateDetail({ person, setPeople, groups, onClose, onPromote, onReject }) {
+  // Denna vy visar samma kandidatdata som listan, men med redigerbara steg, filer och slutplacering.
+  const [draft, setDraft] = useState(() => constrainRecruitmentSteps(getRecruitmentSteps(person)));
+  const [finalPlacement, setFinalPlacement] = useState(() => ({ group: person.group || groupLabel(groups[0]) || '', role: person.role || '' }));
+
+  useEffect(() => {
+    setDraft(constrainRecruitmentSteps(getRecruitmentSteps(person)));
+    setFinalPlacement({ group: person.group || groupLabel(groups[0]) || '', role: person.role || '' });
+  }, [person.id, person.recruitment, person.stage, groups]);
+
+  const updateDraft = (index, patch) => {
+    setDraft(prev => {
+      const next = prev.map((step, stepIndex) => stepIndex === index ? { ...step, ...patch } : step);
+      if ('completed' in patch) {
+        const priorComplete = next.slice(0, index).every(step => step.completed);
+        if (patch.completed && !priorComplete) return prev;
+        if (!patch.completed) {
+          return next.map((step, stepIndex) => stepIndex > index ? { ...step, completed: false } : step);
+        }
+      }
+      return constrainRecruitmentSteps(next);
+    });
+  };
+
+  const saveStep = index => {
+    const now = new Date().toISOString();
+    setPeople(prev => prev.map(current => current.id === person.id ? normalizePerson({
+      ...current,
+      recruitment: {
+        ...current.recruitment,
+        steps: draft.map((step, stepIndex) => stepIndex === index ? { ...step, savedAt: now } : step),
+      },
+    }) : current));
+  };
+
+  const uploadStepDocument = async (index, fileRecord, meta) => {
+    setPeople(prev => prev.map(current => current.id === person.id ? applyDocumentUpload(current, fileRecord, {
+      ...meta,
+      source: 'Rekrytering',
+      stepId: current.recruitment?.steps?.[index]?.id || '',
+      stepLabel: current.recruitment?.steps?.[index]?.label || '',
+    }, index) : current));
+  };
+
+  const saveFinalPlacement = () => {
+    setPeople(prev => prev.map(current => current.id === person.id ? normalizePerson({
+      ...current,
+      group: finalPlacement.group,
+      role: finalPlacement.role,
+    }) : current));
+  };
+
+  const allDone = draft.every(step => step.completed);
+  const doneCount = draft.filter(step => step.completed).length;
+  const activeLabel = draft[doneCount]?.label || recruitmentStageLabels[recruitmentStageLabels.length - 1];
+  const canPromote = allDone && finalPlacement.group && finalPlacement.role;
+
+  return <Modal title="Rekryteringsprofil" onClose={onClose} wide>
+    <div className="profile-head">
+      <Avatar person={person} large />
+      <div><h2>{person.name}</h2><p>{person.role || '-'} · {person.group || '-'}</p></div>
+      <span className="tag">{person.status === 'Rekrytering' ? `Steg ${doneCount + 1} av ${recruitmentStageLabels.length}` : person.status}</span>
+    </div>
+    <div className="profile-grid recruitment-summary">
+      <div><label>E-post</label><b>{person.email}</b></div>
+      <div><label>Telefon</label><b>{person.phone}</b></div>
+      <div><label>Tjänstgöringsgrad</label><b>{person.rate} %</b></div>
+      <div><label>Aktuellt steg</label><b>{activeLabel}</b></div>
+    </div>
+    <div className="recruitment-editor">
+      {draft.map((step, index) => { const locked = index > 0 && !draft.slice(0, index).every(item => item.completed); return <RecruitmentStepCard key={step.id} stageLabel={recruitmentStageLabels[index]} step={step} index={index} locked={locked} onChange={updateDraft} onSave={saveStep} onUpload={uploadStepDocument} />; })}
+    </div>
+    <div className="final-placement">
+      <div className="panel-head"><div><h2>Slutlig placering</h2><p>Välj grupp och roll innan kandidaten flyttas till Medarbetare.</p></div></div>
+      <div className="form-grid final-placement-grid">
+        <label>Grupp<select value={finalPlacement.group} onChange={e => setFinalPlacement(prev => ({ ...prev, group: e.target.value }))}>{groups.map(group => <option key={group.id} value={group.name}>{group.name}</option>)}</select></label>
+        <label>Roll<input value={finalPlacement.role} onChange={e => setFinalPlacement(prev => ({ ...prev, role: e.target.value }))} placeholder="Roll i anställning" /></label>
+      </div>
+      <div className="placement-actions">
+        <button type="button" className="secondary small" onClick={saveFinalPlacement}>Spara placering</button>
+        <span className="tag">Obligatoriskt innan anställning</span>
+      </div>
+    </div>
+    <div className="candidate-footer">
+      <button type="button" className="secondary danger" onClick={() => onReject(person.id)}><X size={15}/>Avvisa kandidat</button>
+      <button type="button" className="primary" disabled={!canPromote} onClick={() => { saveFinalPlacement(); onPromote(person.id, finalPlacement); }}><UserPlus size={16}/>Flytta till Medarbetare</button>
+    </div>
+  </Modal>;
+}
+
+function EmployeeDetail({ person, setPeople, onClose, onEdit }) {
+  // För en färdig medarbetare visas profilvyn med samma data som i redigeringen plus dokumentlista.
+  return <Modal title="Medarbetarprofil" onClose={onClose} wide>
+    <div className="profile-head">
+      <Avatar person={person} large />
+      <div><h2>{person.name}</h2><p>{person.role || '-'} · {person.group || '-'}</p></div>
+      <button className="secondary small" onClick={onEdit}><Pencil size={15}/>Redigera</button>
+    </div>
+    <div className="profile-grid">
+      <div><label>E-post</label><b>{person.email}</b></div>
+      <div><label>Telefon</label><b>{person.phone}</b></div>
+      <div><label>Roll</label><b>{person.role || '-'}</b></div>
+      <div><label>Tjänstgöringsgrad</label><b>{person.rate} %</b></div>
+      <div><label>Grupp</label><b>{person.group || '-'}</b></div>
+      <div><label>Första anställningsdag</label><b>{person.employmentDate ? new Date(person.employmentDate).toLocaleDateString('sv-SE') : (person.start ? new Date(person.start).toLocaleDateString('sv-SE') : '-')}</b></div>
+      <div><label>Provanställning upphör</label><b>{person.probationEnd ? new Date(person.probationEnd).toLocaleDateString('sv-SE') : '-'}</b></div>
+      <div><label>Startdatum i systemet</label><b>{person.start ? new Date(person.start).toLocaleDateString('sv-SE') : '-'}</b></div>
+    </div>
+    <DocumentShelf
+      person={person}
+      setPeople={setPeople}
+      title="Dokument"
+      subtitle="CV, registerutdrag, kvitton, intyg och andra filer samlas här."
+    />
+  </Modal>;
+}
+
+function EmployeeEditForm({ person, groups, onClose, onSave }) {
+  // Redigeringsformuläret skriver tillbaka hela personobjektet och håller datumfält för äldre anställningar.
+  const [form, setForm] = useState(() => ({
+    name: person.name || '',
+    email: person.email || '',
+    phone: person.phone || '',
+    group: person.group || groupLabel(groups[0]) || '',
+    role: person.role || '',
+    rate: person.rate ?? 100,
+    employmentDate: person.employmentDate || person.start || '',
+    probationEnd: person.probationEnd || '',
+    start: person.start || '',
+  }));
+
+  const submit = e => {
+    e.preventDefault();
+    onSave({
+      ...person,
+      name: form.name.trim(),
+      email: form.email.trim(),
+      phone: form.phone.trim(),
+      group: form.group,
+      role: form.role.trim(),
+      rate: Number(form.rate),
+      employmentDate: form.employmentDate,
+      probationEnd: form.probationEnd,
+      start: form.start || form.employmentDate,
+    });
+  };
+
+  const update = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
+
+  return <Modal title="Redigera medarbetare" onClose={onClose} wide>
+    <form className="form" onSubmit={submit}>
+      <div className="form-grid">
+        <label>Namn<input value={form.name} onChange={e => update('name', e.target.value)} required /></label>
+        <label>Grupp<select value={form.group} onChange={e => update('group', e.target.value)}>{groups.map(group => <option key={group.id} value={group.name}>{group.name}</option>)}</select></label>
+      </div>
+      <div className="form-grid">
+        <label>E-post<input type="email" value={form.email} onChange={e => update('email', e.target.value)} required /></label>
+        <label>Telefon<input value={form.phone} onChange={e => update('phone', e.target.value)} required /></label>
+      </div>
+      <div className="form-grid">
+        <label>Roll<input value={form.role} onChange={e => update('role', e.target.value)} required /></label>
+        <label>Tjänstgöringsgrad<input type="number" min="0" max="100" value={form.rate} onChange={e => update('rate', e.target.value)} /></label>
+      </div>
+      <div className="form-grid">
+        <label>Första anställningsdag<input type="date" value={form.employmentDate} onChange={e => update('employmentDate', e.target.value)} /></label>
+        <label>Provanställning upphör<input type="date" value={form.probationEnd} onChange={e => update('probationEnd', e.target.value)} /></label>
+      </div>
+      <label>Startdatum i systemet<input type="date" value={form.start} onChange={e => update('start', e.target.value)} /></label>
+      <div className="form-actions"><button type="button" className="secondary" onClick={onClose}>Avbryt</button><button className="primary">Spara ändringar</button></div>
+    </form>
+  </Modal>;
+}
+
+function RejectedDetail({ person, onClose, retentionDays }) {
+  // Avvisade kandidater visas fortfarande under den tid admin har valt att spara dem.
+  return <Modal title="Avvisad kandidat" onClose={onClose} wide>
+    <div className="profile-head">
+      <Avatar person={person} large />
+      <div><h2>{person.name}</h2><p>{person.role} · {person.group}</p></div>
+      <span className="tag danger">Avvisad</span>
+    </div>
+    <div className="profile-grid">
+      <div><label>E-post</label><b>{person.email}</b></div>
+      <div><label>Telefon</label><b>{person.phone}</b></div>
+      <div><label>Avvisad</label><b>{person.recruitment?.rejectedAt ? new Date(person.recruitment.rejectedAt).toLocaleDateString('sv-SE') : '-'}</b></div>
+      <div><label>Bevaras till</label><b>{person.recruitment?.rejectedAt ? new Date(new Date(person.recruitment.rejectedAt).getTime() + retentionDays * 24 * 60 * 60 * 1000).toLocaleDateString('sv-SE') : '-'}</b></div>
+    </div>
+  </Modal>;
+}
+
+function PersonDetail({ person, setPeople, groups, onClose, onPromote, onReject, retentionDays }) {
+  // Ett enda valpunkt för alla profiler, där vyerna skiljer sig beroende på status.
+  const [editing, setEditing] = useState(false);
+  if (person.status === 'Rekrytering') {
+    return <CandidateDetail person={person} setPeople={setPeople} groups={groups} onClose={onClose} onPromote={onPromote} onReject={onReject} />;
+  }
+  if (person.status === 'Avvisad') {
+    return <RejectedDetail person={person} onClose={onClose} retentionDays={retentionDays} />;
+  }
+  if (editing) {
+    return <EmployeeEditForm person={person} groups={groups} onClose={() => setEditing(false)} onSave={updated => { setPeople(prev => prev.map(current => current.id === updated.id ? normalizePerson(updated) : current)); setEditing(false); }} />;
+  }
+  return <EmployeeDetail person={person} setPeople={setPeople} onClose={onClose} onEdit={() => setEditing(true)} />;
 }
 
 function Groups({ groups, setGroups, people }) {
+  // Gruppvyn används för att administrera organisationens indelning, namn och typ.
   const [name, setName] = useState('');
-  return <><PageHeader title="Grupper" subtitle="Sortera personer efter enhet, arbetsplats eller anställningsform"/><div className="group-grid">{groups.map(g => <section className="group" key={g}><Building2/><div><h3>{g}</h3><p>{people.filter(p => p.group === g).length} personer</p></div><button className="icon-btn danger" onClick={() => setGroups(x => x.filter(v => v !== g))}><Trash2 size={17}/></button></section>)}</div>
-    <form className="inline-add group-add" onSubmit={e => {e.preventDefault(); if(name.trim()){setGroups(x => [...x,name.trim()]); setName('')}}}><input value={name} onChange={e => setName(e.target.value)} placeholder="Namn på ny grupp"/><button className="primary"><Plus size={17}/>Skapa grupp</button></form></>;
+  const [type, setType] = useState(initialGroupTypes[0]);
+  const [editingId, setEditingId] = useState(null);
+  const [draftName, setDraftName] = useState('');
+  const [draftType, setDraftType] = useState(initialGroupTypes[0]);
+
+  const updateGroup = (id, patch) => {
+    setGroups(prev => prev.map(group => group.id === id ? { ...group, ...patch } : group));
+  };
+
+  const beginEdit = group => {
+    setEditingId(group.id);
+    setDraftName(group.name);
+    setDraftType(group.type);
+  };
+
+  const saveEdit = id => {
+    if (!draftName.trim()) return;
+    updateGroup(id, { name: draftName.trim(), type: draftType });
+    setEditingId(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+  };
+
+  const addGroup = e => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setGroups(prev => [...prev, { id: Date.now(), name: name.trim(), type }]);
+    setName('');
+    setType(initialGroupTypes[0]);
+  };
+
+  return <>
+    <PageHeader title="Grupper" subtitle="Sortera personer efter enhet, arbetsplats eller anställningsform" />
+    <form className="inline-add group-add" onSubmit={addGroup}><input value={name} onChange={e => setName(e.target.value)} placeholder="Namn på ny enhet"/><select value={type} onChange={e => setType(e.target.value)}>{initialGroupTypes.map(option => <option key={option}>{option}</option>)}</select><button className="primary"><Plus size={17}/>Skapa grupp</button></form>
+    <section className="panel group-text-panel">
+      <div className="panel-head"><div><h2>Befintliga grupper</h2><p>Ren textlista med en redigeringsknapp per rad.</p></div><span>{groups.length} grupper</span></div>
+      <div className="group-text-list">
+        {groups.map(group => <div className="group-text-row" key={group.id}><div className="group-text-main"><strong>{group.name}</strong><span>{group.type}</span><small>{people.filter(person => person.group === group.name).length} personer</small></div><button className="icon-btn" onClick={() => beginEdit(group)} aria-label={`Redigera ${group.name}`}><Pencil size={16}/></button>{editingId === group.id ? <div className="group-text-edit"><input className="group-name" value={draftName} onChange={e => setDraftName(e.target.value)} placeholder="Namn på enhet"/><select className="group-type" value={draftType} onChange={e => setDraftType(e.target.value)}>{initialGroupTypes.map(option => <option key={option}>{option}</option>)}</select><button className="primary small" onClick={() => saveEdit(group.id)}>Spara</button><button className="secondary small" onClick={cancelEdit}>Avbryt</button></div> : null}</div>)}
+      </div>
+    </section>
+  </>;
 }
 
 function ImportExport({ people }) {
+  // Exporten delar samma datamodell som resten av appen så att personregistret går att flytta vidare.
   const exportCsv = () => {
     const header = 'Namn,E-post,Telefon,Grupp,Roll,Tjänstgöringsgrad';
-    const body = people.map(p => [p.name,p.email,p.phone,p.group,p.role,p.rate].map(v => `"${v}"`).join(',')).join('\n');
-    const url = URL.createObjectURL(new Blob([`${header}\n${body}`], {type:'text/csv;charset=utf-8'}));
-    const a = document.createElement('a'); a.href = url; a.download = 'kontaktuppgifter.csv'; a.click(); URL.revokeObjectURL(url);
+    const body = people.map(person => [person.name, person.email, person.phone, person.group, person.role, person.rate].map(value => `"${value}"`).join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([`${header}\n${body}`], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'kontaktuppgifter.csv';
+    a.click();
+    URL.revokeObjectURL(url);
   };
-  return <><PageHeader title="Import & export" subtitle="Flytta kontaktuppgifter med CSV"/><div className="transfer-grid"><section className="transfer"><Upload/><h2>Importera kontakter</h2><p>Ladda upp en CSV-fil med namn, e-post, telefon och grupp.</p><label className="secondary file-button">Välj CSV-fil<input type="file" accept=".csv"/></label></section><section className="transfer"><Download/><h2>Exportera kontakter</h2><p>Hämta aktuella kontaktuppgifter för alla profiler.</p><button className="primary" onClick={exportCsv}>Exportera {people.length} personer</button></section></div></>;
+
+  return <>
+    <PageHeader title="Import & export" subtitle="Flytta kontaktuppgifter med CSV" />
+    <div className="transfer-grid">
+      <section className="transfer"><Upload/><h2>Importera kontakter</h2><p>Ladda upp en CSV-fil med namn, e-post, telefon och grupp.</p><label className="secondary file-button">Välj CSV-fil<input type="file" accept=".csv" /></label></section>
+      <section className="transfer"><Download/><h2>Exportera kontakter</h2><p>Hämta aktuella kontaktuppgifter för alla profiler.</p><button className="primary" onClick={exportCsv}>Exportera {people.length} personer</button></section>
+    </div>
+  </>;
 }
 
-function Admin({ people, steps, groups }) {
-  return <><PageHeader title="Administration" subtitle="Systemets inställningar och behörigheter"/><div className="admin-list"><section><ShieldCheck/><div><h3>Behörigheter</h3><p>HR-ansvariga kan se allt. Administratörer kan också ändra struktur och inställningar.</p></div><button className="secondary small"><Pencil size={15}/>Hantera</button></section><section><ListChecks/><div><h3>Rekryteringsflöde</h3><p>{steps.length} obligatoriska steg är aktiva.</p></div><span className="tag">Aktivt</span></section><section><Shapes/><div><h3>Organisation</h3><p>{groups.length} grupper och {people.length} profiler.</p></div><span className="tag">Synkroniserat</span></section></div></>;
-}
-
-function PersonDetail({ person, steps, onClose }) {
-  return <Modal title="Medarbetarprofil" onClose={onClose} wide><div className="profile-head"><Avatar person={person} large/><div><h2>{person.name}</h2><p>{person.role} · {person.group}</p></div><button className="secondary small"><Pencil size={15}/>Redigera</button></div><div className="profile-grid"><div><label>E-post</label><b>{person.email}</b></div><div><label>Telefon</label><b>{person.phone}</b></div><div><label>Tjänstgöringsgrad</label><b>{person.rate} %</b></div><div><label>LAS / tillsvidare</label><b>{new Date(person.las).toLocaleDateString('sv-SE')}</b></div></div><div className="document-box"><div><FileText/><span><b>Dokument</b><small>CV, avtal och registerutdrag</small></span></div><label className="secondary file-button"><Upload size={16}/>Ladda upp fil<input type="file" multiple /></label></div>{person.status === 'Rekrytering' ? <div className="profile-progress"><h3>Rekryteringsstatus</h3><Progress person={person} steps={steps}/></div> : null}</Modal>;
+function Admin({ groups, people, retentionDays, setRetentionDays }) {
+  // Administrationsvyn styr den regel som avgör hur länge avvisade kandidater sparas.
+  return <>
+    <PageHeader title="Administration" subtitle="Systemets inställningar och behörigheter" />
+    <div className="admin-list">
+      <section><ShieldCheck/><div><h3>Behörigheter</h3><p>HR-ansvariga kan se allt. Administratörer kan också ändra struktur och inställningar.</p></div><button className="secondary small"><Pencil size={15}/>Hantera</button></section>
+      <section><ListChecks/><div><h3>Rekryteringsflöde</h3><p>{recruitmentStageLabels.length} obligatoriska steg är aktiva.</p></div><span className="tag">Aktivt</span></section>
+      <section><Clock3/><div><h3>Avvisade kandidater</h3><p>Sparas i valda dagar innan de rensas ur arkivet.</p></div><label className="admin-number"><input type="number" min="1" max="3650" value={retentionDays} onChange={e => setRetentionDays(Math.max(1, Number(e.target.value) || 1))} /> dagar</label></section>
+      <section><Shapes/><div><h3>Organisation</h3><p>{groups.length} grupper och {people.length} profiler.</p></div><span className="tag">Synkroniserat</span></section>
+    </div>
+  </>;
 }
 
 function App() {
+  // Tillståndet ligger lokalt och skrivs till localStorage så att arbetet faktiskt överlever omladdning.
+  const seed = loadState();
   const [active, setActive] = useState('Översikt');
-  const [people, setPeople] = useState(initialPeople);
-  const [steps, setSteps] = useState(initialSteps);
-  const [groups, setGroups] = useState(initialGroups);
+  const [people, setPeople] = useState(seed.people);
+  const [groups, setGroups] = useState(seed.groups);
+  const [calendarEvents, setCalendarEvents] = useState(seed.calendarEvents);
+  const [retentionDays, setRetentionDays] = useState(seed.retentionDays);
   const [query, setQuery] = useState('');
-  const [newPerson, setNewPerson] = useState(false);
-  const [selected, setSelected] = useState(null);
+  const [newRecruitmentOpen, setNewRecruitmentOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState(null);
   const [menu, setMenu] = useState(false);
+
+  useEffect(() => {
+    setPeople(prev => pruneRejectedPeople(prev, retentionDays));
+  }, [retentionDays]);
+
+  useEffect(() => {
+    localStorage.setItem(storageKey, JSON.stringify({ people, groups, calendarEvents, retentionDays }));
+  }, [people, groups, calendarEvents, retentionDays]);
+
+  const selectedPerson = useMemo(() => people.find(person => person.id === selectedId) || null, [people, selectedId]);
+
+  const updatePerson = (id, updater) => {
+    setPeople(prev => prev.map(person => person.id === id ? normalizePerson(updater(person)) : person));
+  };
+
+  const promoteCandidate = (id, finalPlacement = {}) => {
+    updatePerson(id, person => ({
+      ...person,
+      group: finalPlacement.group || person.group,
+      role: finalPlacement.role || person.role,
+      status: 'Anställd',
+      recruitment: {
+        ...person.recruitment,
+        promotedAt: new Date().toISOString(),
+        steps: person.recruitment.steps.map(step => ({ ...step, completed: true })),
+      },
+      start: person.employmentDate || new Date().toISOString().slice(0, 10),
+    }));
+    setSelectedId(null);
+    setActive('Medarbetare');
+  };
+
+  const rejectCandidate = id => {
+    updatePerson(id, person => ({
+      ...person,
+      status: 'Avvisad',
+      recruitment: {
+        ...person.recruitment,
+        rejectedAt: new Date().toISOString(),
+        rejectedReason: person.recruitment?.rejectedReason || '',
+      },
+    }));
+    setSelectedId(null);
+  };
+
   const page = useMemo(() => {
-    const common = { people, steps, setPeople, setSelected };
-    if (active === 'Översikt') return <Overview {...common} onOpen={() => setNewPerson(true)}/>;
-    if (active === 'Medarbetare') return <Employees people={people} query={query} setSelected={setSelected}/>;
-    if (active === 'Rekrytering') return <Recruitment {...common}/>;
-    if (active === 'Checklistor') return <ChecklistEditor steps={steps} setSteps={setSteps}/>;
-    if (active === 'Grupper') return <Groups groups={groups} setGroups={setGroups} people={people}/>;
-    if (active === 'Import & export') return <ImportExport people={people}/>;
-    return <Admin people={people} steps={steps} groups={groups}/>;
-  }, [active, people, steps, groups, query]);
+    const common = { people, groups, setPeople, setSelectedId };
+    if (active === 'Översikt') return <Overview people={people} onOpenRecruitment={() => setNewRecruitmentOpen(true)} />;
+    if (active === 'Medarbetare') return <Employees people={people} groups={groups} query={query} setSelectedId={setSelectedId} onAdd={() => setNewRecruitmentOpen(true)} />;
+    if (active === 'Rekrytering') return <Recruitment people={people} setPeople={setPeople} setSelectedId={setSelectedId} retentionDays={retentionDays} onAdd={() => setNewRecruitmentOpen(true)} />;
+    if (active === 'Kalender') return <Calendar people={people} calendarEvents={calendarEvents} setCalendarEvents={setCalendarEvents} />;
+    if (active === 'Grupper') return <Groups groups={groups} setGroups={setGroups} people={people} />;
+    if (active === 'Import & export') return <ImportExport people={people} />;
+    return <Admin groups={groups} people={people} retentionDays={retentionDays} setRetentionDays={setRetentionDays} />;
+  }, [active, people, groups, query, retentionDays]);
+
   return <div className="app-shell">
-    <aside className={`sidebar ${menu ? 'open' : ''}`}><div className="brand">Folk<span>.</span></div><nav>{navItems.map(([label,Icon]) => <button key={label} className={active === label ? 'active' : ''} onClick={() => {setActive(label);setMenu(false)}}><Icon size={20}/><span>{label}</span></button>)}</nav><div className="sidebar-foot"><div className="mini-avatar">KA</div><span><b>Karin Andersson</b><small>Administratör</small></span></div></aside>
-    <div className="main-wrap"><header className="topbar"><button className="mobile-menu" aria-label="Öppna meny" onClick={() => setMenu(!menu)}><Menu/></button><div className="search"><Search size={18}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Sök medarbetare, grupp eller rekrytering"/></div><button className="icon-btn" aria-label="Notiser"><Bell size={20}/></button><button className="user"><span>KA</span><b>Karin Andersson</b></button></header><main>{page}</main></div>
-    {newPerson ? <Modal title="Ny medarbetare" onClose={() => setNewPerson(false)}><PersonForm groups={groups} onClose={() => setNewPerson(false)} onSave={p => { setPeople(x => [...x,{...p,id:Date.now()}]); setNewPerson(false); setActive('Rekrytering'); }}/></Modal> : null}
-    {selected ? <PersonDetail person={selected} steps={steps} onClose={() => setSelected(null)}/> : null}
+    <aside className={`sidebar ${menu ? 'open' : ''}`}>
+      <div className="brand"><strong>Folk<span>.</span></strong><small>Medarbetarkoll</small></div>
+      <nav>{[
+        ['Översikt', LayoutDashboard],
+        ['Medarbetare', Users],
+        ['Rekrytering', BriefcaseBusiness],
+        ['Kalender', CalendarDays],
+        ['Grupper', Shapes],
+        ['Import & export', ArrowUpDown],
+        ['Administration', Settings],
+      ].map(([label, Icon]) => <button key={label} className={active === label ? 'active' : ''} onClick={() => { setActive(label); setMenu(false); }}><Icon size={20}/><span>{label}</span></button>)}</nav>
+      <div className="sidebar-foot"><div className="mini-avatar">KA</div><span><b>Karin Andersson</b><small>Administratör</small></span></div>
+    </aside>
+    <div className="main-wrap">
+      <header className="topbar">
+        <button className="mobile-menu" aria-label="Öppna meny" onClick={() => setMenu(!menu)}><Menu/></button>
+        <div className="search"><Search size={18}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Sök medarbetare, grupp eller rekrytering"/></div>
+        <button className="icon-btn" aria-label="Notiser"><Bell size={20}/></button>
+        <button className="user"><span>KA</span><b>Karin Andersson</b></button>
+      </header>
+      <main>{page}</main>
+    </div>
+    {newRecruitmentOpen ? <Modal title="Ny Rekrytering" onClose={() => setNewRecruitmentOpen(false)}><PersonForm onClose={() => setNewRecruitmentOpen(false)} onSave={person => { setPeople(prev => [...prev, person]); setNewRecruitmentOpen(false); setActive('Rekrytering'); }} /></Modal> : null}
+    {selectedPerson ? <PersonDetail person={selectedPerson} setPeople={setPeople} groups={groups} onClose={() => setSelectedId(null)} onPromote={promoteCandidate} onReject={rejectCandidate} retentionDays={retentionDays} /> : null}
   </div>;
 }
 
-createRoot(document.getElementById('root')).render(<App/>);
+createRoot(document.getElementById('root')).render(<App />);
