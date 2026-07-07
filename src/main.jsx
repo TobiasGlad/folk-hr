@@ -1383,6 +1383,15 @@ function App() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const peopleGroupOptions = ["Alla", ...Array.from(new Set([...groups.map(groupLabel), ...people.map(person => person.group).filter(Boolean)]))];
   const hasPeopleFilters = Boolean(query.trim() || groupFilter !== "Alla" || dateFrom || dateTo);
+  const navigateTo = label => {
+    setActive(label);
+    setMenu(false);
+    setFiltersOpen(false);
+    setQuery("");
+    setGroupFilter("Alla");
+    setDateFrom("");
+    setDateTo("");
+  };
 
   useEffect(() => {
     setPeople(prev => pruneRejectedPeople(prev, retentionDays));
@@ -1509,7 +1518,6 @@ function App() {
 
   return <div className="app-shell">
     <aside className={`sidebar ${menu ? 'open' : ''}`}>
-      <div className="brand"><strong>Folk<span>.</span></strong><small>Medarbetarkoll</small></div>
       <nav>{[
         ['Översikt', LayoutDashboard],
         ['Medarbetare', Users],
@@ -1518,7 +1526,7 @@ function App() {
         ['Grupper', Shapes],
         ['Import & export', ArrowUpDown],
         ['Administration', Settings],
-      ].map(([label, Icon]) => <button key={label} className={active === label ? 'active' : ''} onClick={() => { setActive(label); setMenu(false); }}><Icon size={20}/><span>{label}</span></button>)}</nav>
+      ].map(([label, Icon]) => <button key={label} className={active === label ? 'active' : ''} onClick={() => navigateTo(label)}><Icon size={20}/><span>{label}</span></button>)}</nav>
       <div className="sidebar-foot"><div className="mini-avatar">{userInitials(currentUser.name)}</div><span><b>{currentUser.name}</b><small>{currentUser.role}</small></span></div>
     </aside>
     <div className="main-wrap">
