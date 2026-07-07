@@ -30,7 +30,7 @@
 .candidate-body{display:grid;gap:12px}
 .candidate-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
 .archive-list{display:grid}
-.archive-row{width:100%;border:0;border-top:1px solid var(--line);background:#fff;padding:14px 20px;display:grid;grid-template-columns:1.4fr 1fr .9fr 20px;align-items:center;gap:12px;text-align:left;font-size:13px}
+.archive-row{width:100%;border:0;border-top:1px solid var(--line);background:#fff;padding:14px 20px;display:grid;grid-template-columns:1.4fr .8fr .8fr .9fr 20px;align-items:center;gap:12px;text-align:left;font-size:13px}
 .archive-row:hover{background:#fafcfb}
 .recruitment-editor{display:grid;gap:12px;padding:18px 20px}
 .step-card{border:1px solid var(--line);border-radius:10px;padding:16px;background:#fff;display:grid;gap:12px}

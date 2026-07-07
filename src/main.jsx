@@ -754,8 +754,8 @@ function Calendar({ people, calendarEvents, setCalendarEvents }) {
     </div>
     <section className="panel calendar-toolbar">
       <div className="calendar-controls">
-        <div className="search calendar-search"><Search size={18}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Sök datum, person eller typ"/></div>
-        <label className="calendar-select"><span>Typ</span><select value={filter} onChange={e => setFilter(e.target.value)}>{typeOptions.map(option => <option key={option}>{option}</option>)}</select></label>
+        <div className="search calendar-search"><Search size={18}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Sök datum, person eller händelsetyp"/></div>
+        <label className="calendar-select"><span>Händelsetyp</span><select value={filter} onChange={e => setFilter(e.target.value)}>{typeOptions.map(option => <option key={option}>{option}</option>)}</select></label>
         <label className="secondary file-button"><Upload size={16}/>Importera CSV<input type="file" accept=".csv" onChange={handleImport} /></label>
         <button className="primary" onClick={exportCsv}><Download size={16}/>Exportera CSV</button>
       </div>
@@ -806,7 +806,7 @@ function Recruitment({ people, setPeople, setSelectedId, retentionDays, currentU
             <Avatar person={person} large />
             <span>
               <h3>{person.name}</h3>
-              <p>{person.role} · {person.group} · {person.rate} %</p>
+              <p>{person.role} · {person.unit || '-'} · {person.group || '-'} · {person.rate} %</p>
             </span>
           </button>
           <div className="candidate-body">
@@ -824,7 +824,8 @@ function Recruitment({ people, setPeople, setSelectedId, retentionDays, currentU
       <div className="archive-list">
         {archivedCandidates.length ? archivedCandidates.map(person => <button className="archive-row" key={person.id} onClick={() => setSelectedId(person.id)}>
           <span className="person-cell"><Avatar person={person}/><span><b>{person.name}</b><small>{person.role}</small></span></span>
-          <span>{person.group}</span>
+          <span>{person.unit || '-'}</span>
+          <span>{person.group || '-'}</span>
           <span>{person.recruitment?.rejectedAt ? new Date(person.recruitment.rejectedAt).toLocaleDateString('sv-SE') : '-'}</span>
           <ChevronRight size={17}/>
         </button>) : <div className="empty-state">Inga avvisade kandidater inom sparad tidsperiod.</div>}
@@ -1119,7 +1120,7 @@ function RejectedDetail({ person, onClose, retentionDays }) {
   return <Modal title="Avvisad kandidat" onClose={onClose} wide>
     <div className="profile-head">
       <Avatar person={person} large />
-      <div><h2>{person.name}</h2><p>{person.role} · {person.group}</p></div>
+      <div><h2>{person.name}</h2><p>{person.role} · {person.unit || '-'} · {person.group || '-'}</p></div>
       <span className="tag danger">Avvisad</span>
     </div>
     <div className="profile-grid">
