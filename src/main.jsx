@@ -994,6 +994,7 @@ function EmployeeDetail({ person, setPeople, onClose, onEdit }) {
       <div><label>E-post</label><b>{person.email}</b></div>
       <div><label>Telefon</label><b>{person.phone}</b></div>
       <div><label>Roll</label><b>{person.role || '-'}</b></div>
+      <div><label>Utbildning</label><b>{person.education || '-'}</b></div>
       <div><label>Tjänstgöringsgrad</label><b>{person.rate} %</b></div>
       <div><label>Grupp</label><b>{person.group || '-'}</b></div>
       <div><label>Första anställningsdag</label><b>{person.employmentDate ? new Date(person.employmentDate).toLocaleDateString('sv-SE') : (person.start ? new Date(person.start).toLocaleDateString('sv-SE') : '-')}</b></div>
@@ -1019,6 +1020,7 @@ function EmployeeEditForm({ person, groups, onClose, onSave }) {
     phone: person.phone || '',
     group: person.group || groupLabel(groups[0]) || '',
     role: person.role || '',
+    education: person.education || '',
     rate: person.rate ?? 100,
     employmentDate: person.employmentDate || person.start || '',
     probationEnd: person.probationEnd || '',
@@ -1034,6 +1036,7 @@ function EmployeeEditForm({ person, groups, onClose, onSave }) {
       phone: form.phone.trim(),
       group: form.group,
       role: form.role.trim(),
+      education: form.education.trim(),
       rate: Number(form.rate),
       employmentDate: form.employmentDate,
       probationEnd: form.probationEnd,
@@ -1055,8 +1058,9 @@ function EmployeeEditForm({ person, groups, onClose, onSave }) {
       </div>
       <div className="form-grid">
         <label>Roll<input value={form.role} onChange={e => update('role', e.target.value)} required /></label>
-        <label>Tjänstgöringsgrad<input type="number" min="0" max="100" value={form.rate} onChange={e => update('rate', e.target.value)} /></label>
+        <label>Utbildning<input value={form.education} onChange={e => update('education', e.target.value)} placeholder="Ex. undersköterska, beteendevetare" /></label>
       </div>
+      <label>Tjänstgöringsgrad<input type="number" min="0" max="100" value={form.rate} onChange={e => update('rate', e.target.value)} /></label>
       <div className="form-grid">
         <label>Första anställningsdag<input type="date" value={form.employmentDate} onChange={e => update('employmentDate', e.target.value)} /></label>
         <label>Provanställning upphör<input type="date" value={form.probationEnd} onChange={e => update('probationEnd', e.target.value)} /></label>
