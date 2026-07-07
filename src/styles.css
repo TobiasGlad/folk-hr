@@ -104,6 +104,7 @@
 @media(max-width:1050px){.calendar-grid{grid-template-columns:1fr}.calendar-controls{grid-template-columns:1fr 160px 1fr 1fr}.recruitment-summary{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:720px){.calendar-controls{grid-template-columns:1fr}.calendar-row{grid-template-columns:1fr 18px}.calendar-main{grid-column:1/-1}.calendar-side{margin-top:14px}.recruitment-summary{grid-template-columns:1fr}.calendar-toolbar .calendar-select,.calendar-toolbar .secondary,.calendar-toolbar .primary{width:100%}}
 
+.group-admin-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
 .group-create-panel{max-width:900px;margin-bottom:16px;overflow:hidden}
 .group-create-fields{display:grid;grid-template-columns:minmax(220px,1.4fr) minmax(180px,.8fr) auto;gap:12px;align-items:end;padding:18px 20px}
 .group-create-fields label,.group-text-edit label{display:grid;gap:6px;font-size:12px;font-weight:600;color:var(--text)}
@@ -121,6 +122,7 @@
 .group-member-count{font-size:12px;color:var(--muted);white-space:nowrap}
 .group-text-edit{grid-column:1/-1;display:grid;grid-template-columns:minmax(220px,1fr) minmax(180px,.7fr) auto;gap:12px;align-items:end;margin-top:2px;padding:16px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
 .group-edit-actions{display:flex;gap:8px;justify-content:flex-end}
+@media(max-width:1050px){.group-admin-grid{grid-template-columns:1fr}}
 @media(max-width:720px){.group-create-fields{grid-template-columns:1fr}.group-create-fields .primary{width:100%}.group-text-row{grid-template-columns:42px 1fr}.group-member-count{grid-column:2}.group-text-row>.secondary{grid-column:2;justify-self:start}.group-text-edit{grid-template-columns:1fr}.group-edit-actions{justify-content:stretch}.group-edit-actions .primary,.group-edit-actions .secondary{flex:1}}
 .final-placement{margin:0 20px 18px;border:1px solid var(--line);border-radius:10px;background:#fff;overflow:hidden}.final-placement .panel-head{border-bottom:1px solid var(--line)}.final-placement-grid{padding:16px 20px 0}.placement-actions{padding:14px 20px 18px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 

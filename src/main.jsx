@@ -16,21 +16,17 @@ const colorThemes = [
   { id: 'folk', name: 'Folk', description: 'Nuvarande gröna färgskala', colors: ['#0c5948', '#e5f0ec', '#f4f7f6'] },
   { id: 'mikaelgarden', name: 'Mikaelgården', description: 'Profilfärger från mikaelgarden.se', colors: ['#a64356', '#ebdcb1', '#f7f8f3'] },
 ];
-const initialGroups = [
-  { id: 1, name: 'Örjanshuset', type: 'LSS' },
-  { id: 2, name: 'Skogshuset', type: 'LSS' },
-  { id: 3, name: 'Vikarier', type: 'Vikarier' },
-];
+const initialGroups = ['Örjanshuset', 'Lauerhuset', 'Skogshuset', 'Prachthuset', 'Enebacken', 'Tobiashuset', 'Solglimt', 'Lärare', 'Assistent', 'Alla boendehus', 'Vikarier'];
 const initialAdmins = [
   { id: 1, name: 'Tobias Glad', email: 'tobias.glad@mikaelgarden.se', role: 'Admin', password: 'Herzen222' },
 ];
 const initialPeopleSeed = [
-  { id: 1, name: 'Elin Berg', initials: 'EB', email: 'elin.berg@folk.se', phone: '070-182 31 40', group: 'Örjanshuset', role: 'Stödassistent', rate: 100, stage: 2, status: 'Rekrytering', start: '2026-08-18', employmentDate: '2026-08-18', probationEnd: '2027-02-18', color: '#d9e9e2' },
-  { id: 2, name: 'Marcus Lind', initials: 'ML', email: 'marcus.lind@folk.se', phone: '072-881 15 02', group: 'Skogshuset', role: 'Boendestödjare', rate: 80, stage: 1, status: 'Rekrytering', start: '2026-09-01', employmentDate: '2026-09-01', probationEnd: '2027-03-01', color: '#e6e0d8' },
-  { id: 3, name: 'Sara Ahmed', initials: 'SA', email: 'sara.ahmed@folk.se', phone: '073-491 44 88', group: 'Vikarier', role: 'Stödassistent', rate: 100, stage: 3, status: 'Rekrytering', start: '2026-07-15', employmentDate: '2026-07-15', probationEnd: '2027-01-15', color: '#e4dbe8' },
-  { id: 4, name: 'Oskar Persson', initials: 'OP', email: 'oskar.persson@folk.se', phone: '070-390 22 17', group: 'Örjanshuset', role: 'Samordnare', rate: 100, stage: 4, status: 'Anställd', start: '2025-12-01', employmentDate: '2025-12-01', probationEnd: '2026-08-24', color: '#dae2ec' },
-  { id: 5, name: 'Linnea Karlsson', initials: 'LK', email: 'linnea.karlsson@folk.se', phone: '076-228 18 19', group: 'Skogshuset', role: 'Stödassistent', rate: 75, stage: 4, status: 'Anställd', start: '2026-01-12', employmentDate: '2026-01-12', probationEnd: '2026-09-02', color: '#eee0d7' },
-  { id: 6, name: 'Jonas Nilsson', initials: 'JN', email: 'jonas.nilsson@folk.se', phone: '070-225 91 02', group: 'Vikarier', role: 'Timvikarie', rate: 40, stage: 4, status: 'Anställd', start: '2026-03-10', employmentDate: '2026-03-10', probationEnd: '2026-09-15', color: '#dbe8df' },
+  { id: 1, name: 'Elin Berg', initials: 'EB', email: 'elin.berg@folk.se', phone: '070-182 31 40', unit: 'Örjanshuset', group: 'LSS', role: 'Stödassistent', rate: 100, stage: 2, status: 'Rekrytering', start: '2026-08-18', employmentDate: '2026-08-18', probationEnd: '2027-02-18', color: '#d9e9e2' },
+  { id: 2, name: 'Marcus Lind', initials: 'ML', email: 'marcus.lind@folk.se', phone: '072-881 15 02', unit: 'Skogshuset', group: 'LSS', role: 'Boendestödjare', rate: 80, stage: 1, status: 'Rekrytering', start: '2026-09-01', employmentDate: '2026-09-01', probationEnd: '2027-03-01', color: '#e6e0d8' },
+  { id: 3, name: 'Sara Ahmed', initials: 'SA', email: 'sara.ahmed@folk.se', phone: '073-491 44 88', unit: 'Vikarier', group: 'Vikarier', role: 'Stödassistent', rate: 100, stage: 3, status: 'Rekrytering', start: '2026-07-15', employmentDate: '2026-07-15', probationEnd: '2027-01-15', color: '#e4dbe8' },
+  { id: 4, name: 'Oskar Persson', initials: 'OP', email: 'oskar.persson@folk.se', phone: '070-390 22 17', unit: 'Örjanshuset', group: 'LSS', role: 'Samordnare', rate: 100, stage: 4, status: 'Anställd', start: '2025-12-01', employmentDate: '2025-12-01', probationEnd: '2026-08-24', color: '#dae2ec' },
+  { id: 5, name: 'Linnea Karlsson', initials: 'LK', email: 'linnea.karlsson@folk.se', phone: '076-228 18 19', unit: 'Skogshuset', group: 'LSS', role: 'Stödassistent', rate: 75, stage: 4, status: 'Anställd', start: '2026-01-12', employmentDate: '2026-01-12', probationEnd: '2026-09-02', color: '#eee0d7' },
+  { id: 6, name: 'Jonas Nilsson', initials: 'JN', email: 'jonas.nilsson@folk.se', phone: '070-225 91 02', unit: 'Vikarier', group: 'Vikarier', role: 'Timvikarie', rate: 40, stage: 4, status: 'Anställd', start: '2026-03-10', employmentDate: '2026-03-10', probationEnd: '2026-09-15', color: '#dbe8df' },
 ];
 const storageKey = 'folk-hr-state-v5';
 const defaultRetentionDays = 30;
@@ -175,16 +171,20 @@ function makeDocumentDownloadName(document) {
   return document.name || `dokument-${document.kind || 'annat'}`;
 }
 
-function normalizePerson(person) {
+function normalizePerson(person, unitToGroupType = new Map()) {
   const recruitment = person.recruitment || {};
   const stage = Number(person.stage || 0);
   const steps = constrainRecruitmentSteps(makeRecruitmentSteps(stage, recruitment.steps || []));
   if (person.status === 'Anställd') {
     steps.forEach(step => { step.completed = true; });
   }
+  const unit = person.unit || person.groupUnit || person.group || '';
+  const group = person.group || person.groupType || unitToGroupType.get(unit) || '';
   const documents = normalizeDocuments(Array.isArray(person.documents) ? person.documents : [], steps);
   return {
     ...person,
+    unit,
+    group,
     documents,
     recruitment: {
       steps,
@@ -197,8 +197,8 @@ function normalizePerson(person) {
   };
 }
 
-function normalizePeople(people) {
-  return people.map(normalizePerson);
+function normalizePeople(people, unitToGroupType = new Map()) {
+  return people.map(person => normalizePerson(person, unitToGroupType));
 }
 
 function createCandidateFromForm(data, actor = null) {
@@ -209,6 +209,7 @@ function createCandidateFromForm(data, actor = null) {
     initials,
     email: data.email,
     phone: data.phone,
+    unit: '',
     group: '',
     role: '',
     rate: Number(data.rate),
@@ -242,6 +243,7 @@ function createEmployeeFromForm(data, actor = null) {
     initials,
     email: data.email,
     phone: data.phone,
+    unit: data.unit,
     group: data.group,
     role: data.role,
     rate: Number(data.rate),
@@ -316,15 +318,19 @@ function formatAudit(actor, dateIso) {
   return date ? `${actorName} · ${date}` : actorName;
 }
 
+function normalizeGroups(groups) {
+  return Array.from(new Set((Array.isArray(groups) ? groups : []).map(group => (typeof group === 'string' ? group : group?.name || group?.unit || '')).filter(Boolean)));
+}
+
+function normalizeGroupTypes(groupTypes) {
+  return Array.from(new Set((Array.isArray(groupTypes) ? groupTypes : []).map(groupType => (typeof groupType === 'string' ? groupType : groupType?.type || groupType?.group || '')).filter(Boolean)));
+}
+
 function loadState() {
-  const normalizeGroups = groups => groups.map(group => (
-    group && group.name === 'Vikarier' && group.type !== 'Vikarier'
-      ? { ...group, type: 'Vikarier' }
-      : group
-  ));
   const fallback = {
     people: normalizePeople(initialPeopleSeed),
     groups: normalizeGroups(initialGroups),
+    groupTypes: normalizeGroupTypes(initialGroupTypes),
     calendarEvents: [],
     admins: ensureSeedUsers(initialAdmins),
     retentionDays: defaultRetentionDays,
@@ -334,9 +340,21 @@ function loadState() {
     const raw = localStorage.getItem(storageKey);
     if (!raw) return fallback;
     const parsed = JSON.parse(raw);
+    const legacyGroups = Array.isArray(parsed.groups) ? parsed.groups : [];
+    const legacyGroupNames = normalizeGroups(legacyGroups);
+    const legacyGroupTypes = normalizeGroupTypes(legacyGroups);
+    const unitToGroupType = new Map(legacyGroups.map(group => [typeof group === 'string' ? group : group?.name || group?.unit || '', typeof group === 'string' ? '' : group?.type || group?.groupType || '']).filter(([unit]) => Boolean(unit)));
+    const peopleSource = Array.isArray(parsed.people) ? parsed.people : fallback.people;
+    const migratedPeople = peopleSource.map(person => {
+      const rawGroup = person?.group || person?.groupType || '';
+      const unit = person?.unit || person?.groupUnit || (legacyGroupNames.includes(rawGroup) ? rawGroup : '');
+      const group = person?.groupType || (legacyGroupTypes.includes(rawGroup) ? rawGroup : '') || unitToGroupType.get(unit) || '';
+      return { ...person, unit, group };
+    });
     return {
-      people: normalizePeople(Array.isArray(parsed.people) ? parsed.people : fallback.people),
+      people: normalizePeople(migratedPeople, unitToGroupType),
       groups: normalizeGroups(Array.isArray(parsed.groups) && parsed.groups.length ? parsed.groups : fallback.groups),
+      groupTypes: normalizeGroupTypes(Array.isArray(parsed.groupTypes) && parsed.groupTypes.length ? parsed.groupTypes : (legacyGroups.length ? legacyGroups.map(group => typeof group === 'string' ? group : group?.type || group?.groupType || '') : fallback.groupTypes)),
       calendarEvents: Array.isArray(parsed.calendarEvents) ? parsed.calendarEvents : fallback.calendarEvents,
       admins: ensureSeedUsers(Array.isArray(parsed.admins) && parsed.admins.length ? parsed.admins : fallback.admins),
       retentionDays: Number(parsed.retentionDays) || fallback.retentionDays,
@@ -367,11 +385,19 @@ function groupOrder(allGroups, presentGroups) {
 }
 
 function groupLabel(group) {
-  return typeof group === 'string' ? group : group?.name || '';
+  return typeof group === 'string' ? group : group?.name || group?.unit || '';
 }
 
 function groupType(group) {
-  return typeof group === 'string' ? 'LSS' : group?.type || 'LSS';
+  return typeof group === 'string' ? '' : group?.type || group?.groupType || '';
+}
+
+function personUnit(person) {
+  return person?.unit || person?.groupUnit || person?.group || '';
+}
+
+function personGroup(person) {
+  return person?.group || person?.groupType || '';
 }
 
 function getRecruitmentSteps(person) {
@@ -572,7 +598,7 @@ function PersonForm({ actor, onSave, onClose }) {
   </form>;
 }
 
-function EmployeeForm({ groups, actor, onSave, onClose }) {
+function EmployeeForm({ groups, groupTypes, actor, onSave, onClose }) {
   // Direkt tillagd medarbetare hoppar över kandidatlistan men markerar rekryteringskraven som redan uppfyllda.
   const submit = e => {
     e.preventDefault();
@@ -580,10 +606,14 @@ function EmployeeForm({ groups, actor, onSave, onClose }) {
     onSave(createEmployeeFromForm(data, actor));
   };
 
+  const unitOptions = groups.length ? groups : [''];
+  const groupOptions = groupTypes.length ? groupTypes : [''];
+
   return <form className="form" onSubmit={submit}>
     <label>Fullständigt namn<input name="name" required placeholder="Förnamn Efternamn" /></label>
     <div className="form-grid"><label>E-post<input type="email" name="email" required placeholder="namn@organisation.se" /></label><label>Telefon<input name="phone" required placeholder="070-000 00 00" /></label></div>
-    <div className="form-grid"><label>Grupp<select name="group" required>{groups.map(group => <option key={groupLabel(group)} value={groupLabel(group)}>{groupLabel(group)}</option>)}</select></label><label>Roll<input name="role" required placeholder="Ex. Stödassistent" /></label></div>
+    <div className="form-grid"><label>Enhet<select name="unit" required>{unitOptions.map(unit => <option key={unit || 'tom-enhet'} value={unit}>{unit || 'Välj enhet'}</option>)}</select></label><label>Grupp<select name="group" required>{groupOptions.map(group => <option key={group || 'tom-grupp'} value={group}>{group || 'Välj grupp'}</option>)}</select></label></div>
+    <label>Roll<input name="role" required placeholder="Ex. Stödassistent" /></label>
     <label>Tjänstgöringsgrad<input name="rate" type="number" min="0" max="100" defaultValue="100" /></label>
     <div className="form-grid"><label>Anställningsdatum<input name="employmentDate" type="date" /></label><label>Provanställning upphör<input name="probationEnd" type="date" /></label></div>
     <div className="form-grid"><label>Uppsägning inlämnad<input name="noticeDate" type="date" /></label><label>Sista anställningsdag<input name="terminationDate" type="date" /></label></div>
@@ -623,11 +653,11 @@ function Overview({ people, onOpenRecruitment, onOpenFilters }) {
 function Employees({ people, groups, query, setSelectedId, onAdd, onOpenFilters }) {
   // Medarbetarvyn filtrerar först och grupperar sedan så att listan går att läsa snabbt.
   const normalized = query.toLowerCase();
-  const groupTypeByName = groupName => groupType(groups.find(group => groupLabel(group) === groupName)) || "-";
-  const rows = people.filter(person => person.status === "Anställd" && `${person.name} ${person.group} ${person.role} ${person.education || ""} ${groupTypeByName(person.group)}`.toLowerCase().includes(normalized));
+  const rows = people.filter(person => person.status === 'Anställd' && `${person.name} ${person.unit || ''} ${person.group || ''} ${person.role} ${person.education || ''}`.toLowerCase().includes(normalized));
   const grouped = rows.reduce((acc, person) => {
-    acc[person.group] = acc[person.group] || [];
-    acc[person.group].push(person);
+    const unit = person.unit || '';
+    acc[unit] = acc[unit] || [];
+    acc[unit].push(person);
     return acc;
   }, {});
   const orderedGroups = groupOrder(groups, Object.keys(grouped));
@@ -636,37 +666,36 @@ function Employees({ people, groups, query, setSelectedId, onAdd, onOpenFilters 
     <PageHeader title="Medarbetare" subtitle={`${rows.length} aktiva profiler`} onAdd={onAdd} addLabel="Lägg till medarbetare" />
     <section className="panel list-panel">
       <div className="panel-head"><h2>Alla medarbetare</h2><button className="secondary small" onClick={onOpenFilters}><SlidersHorizontal size={16}/>Filtrera</button></div>
-      <div className="employee-head"><span>Medarbetare</span><span>Grupp</span><span>Grupptyp</span><span>Utbildning</span><span>Tjänstgöringsgrad</span><span>Provanställning upphör</span><span/></div>
-      {rows.length ? orderedGroups.map(group => { const groupName = groupLabel(group); return <div key={groupName} className="group-section"><div className="group-section-head"><h3>{groupName}</h3><span>{(grouped[groupName] || []).length} personer</span></div>{(grouped[groupName] || []).map(person => <button className="employee-row" key={person.id} onClick={() => setSelectedId(person.id)}><span className="person-cell"><Avatar person={person}/><span><b>{person.name}</b><small>{person.role}</small></span></span><span>{person.group}</span><span>{groupTypeByName(person.group)}</span><span>{person.education || "-"}</span><span>{person.rate} %</span><span>{person.probationEnd ? new Date(person.probationEnd).toLocaleDateString("sv-SE") : "-"}</span><ChevronRight size={17}/></button>)}</div>; }) : <div className="empty-state">Inga aktiva medarbetare matchar sökningen.</div>}
+      <div className="employee-head"><span>Medarbetare</span><span>Enhet</span><span>Grupp</span><span>Utbildning</span><span>Tjänstgöringsgrad</span><span>Provanställning upphör</span><span/></div>
+      {rows.length ? orderedGroups.map(unit => { const unitName = groupLabel(unit); return <div key={unitName} className="group-section"><div className="group-section-head"><h3>{unitName}</h3><span>{(grouped[unitName] || []).length} personer</span></div>{(grouped[unitName] || []).map(person => <button className="employee-row" key={person.id} onClick={() => setSelectedId(person.id)}><span className="person-cell"><Avatar person={person}/><span><b>{person.name}</b><small>{person.role}</small></span></span><span>{person.unit || '-'}</span><span>{person.group || '-'}</span><span>{person.education || '-'}</span><span>{person.rate} %</span><span>{person.probationEnd ? new Date(person.probationEnd).toLocaleDateString('sv-SE') : '-'}</span><ChevronRight size={17}/></button>)}</div>; }) : <div className="empty-state">Inga aktiva medarbetare matchar sökningen.</div>}
     </section>
   </>;
 }
 
 function PeopleSearchResults({ people, groups, query, groupFilter, dateFrom, dateTo, setSelectedId }) {
-  const normalized = query.trim().toLocaleLowerCase("sv");
-  const groupTypeByName = groupName => groupType(groups.find(group => groupLabel(group) === groupName)) || "-";
+  const normalized = query.trim().toLocaleLowerCase('sv');
   const rows = people.filter(person => {
-    const searchable = [person.name, person.role, person.group, groupTypeByName(person.group), person.email, person.phone, person.status].filter(Boolean).join(" ").toLocaleLowerCase("sv");
-    const personDate = person.employmentDate || person.start || "";
+    const searchable = [person.name, person.role, person.unit, person.group, person.email, person.phone, person.status].filter(Boolean).join(' ').toLocaleLowerCase('sv');
+    const personDate = person.employmentDate || person.start || '';
     const matchesQuery = !normalized || searchable.includes(normalized);
-    const matchesGroup = groupFilter === "Alla" || person.group === groupFilter;
+    const matchesGroup = groupFilter === 'Alla' || person.unit === groupFilter;
     const matchesFrom = !dateFrom || (personDate && personDate >= dateFrom);
     const matchesTo = !dateTo || (personDate && personDate <= dateTo);
     return matchesQuery && matchesGroup && matchesFrom && matchesTo;
-  }).sort((a, b) => a.name.localeCompare(b.name, "sv"));
+  }).sort((a, b) => a.name.localeCompare(b.name, 'sv'));
 
   return <>
     <PageHeader title="Sökresultat" subtitle={`${rows.length} personer matchar valda sök- och filtervillkor`} />
     <section className="panel people-search-panel">
-      <div className="people-search-head"><span>Person</span><span>Grupp</span><span>Grupptyp</span><span>Anställnings-/startdatum</span><span>Status</span><span /></div>
+      <div className="people-search-head"><span>Person</span><span>Enhet</span><span>Grupp</span><span>Anställnings-/startdatum</span><span>Status</span><span /></div>
       {rows.length ? rows.map(person => {
         const personDate = person.employmentDate || person.start;
         return <button className="people-search-row" key={person.id} onClick={() => setSelectedId(person.id)}>
           <span className="person-cell"><Avatar person={person}/><span><b>{person.name}</b><small>{person.role || person.email}</small></span></span>
-          <span>{person.group || "-"}</span>
-          <span>{groupTypeByName(person.group)}</span>
-          <span>{personDate ? formatDate(personDate) : "-"}</span>
-          <span><span className={person.status === "Avvisad" ? "tag danger" : "tag"}>{person.status}</span></span>
+          <span>{person.unit || '-'}</span>
+          <span>{person.group || '-'}</span>
+          <span>{personDate ? formatDate(personDate) : '-'}</span>
+          <span><span className={person.status === 'Avvisad' ? 'tag danger' : 'tag'}>{person.status}</span></span>
           <ChevronRight size={17}/>
         </button>;
       }) : <div className="empty-state">Inga personer matchar sökningen och de valda filtren.</div>}
@@ -886,15 +915,15 @@ function DocumentShelf({ person, setPeople, title, subtitle, uploadLabel = 'Ladd
   </section>;
 }
 
-function CandidateDetail({ person, setPeople, groups, currentUser, onClose, onPromote, onReject }) {
+function CandidateDetail({ person, setPeople, groups, groupTypes, currentUser, onClose, onPromote, onReject }) {
   // Denna vy visar samma kandidatdata som listan, men med redigerbara steg, filer och slutplacering.
   const [draft, setDraft] = useState(() => constrainRecruitmentSteps(getRecruitmentSteps(person)));
-  const [finalPlacement, setFinalPlacement] = useState(() => ({ group: person.group || groupLabel(groups[0]) || '', role: person.role || '' }));
+  const [finalPlacement, setFinalPlacement] = useState(() => ({ unit: person.unit || groupLabel(groups[0]) || '', group: person.group || groupTypes[0] || '', role: person.role || '' }));
 
   useEffect(() => {
     setDraft(constrainRecruitmentSteps(getRecruitmentSteps(person)));
-    setFinalPlacement({ group: person.group || groupLabel(groups[0]) || '', role: person.role || '' });
-  }, [person.id, person.recruitment, person.stage, groups]);
+    setFinalPlacement({ unit: person.unit || groupLabel(groups[0]) || '', group: person.group || groupTypes[0] || '', role: person.role || '' });
+  }, [person.id, person.recruitment, person.stage, groups, groupTypes]);
 
   const updateDraft = (index, patch) => {
     setDraft(prev => {
@@ -941,6 +970,7 @@ function CandidateDetail({ person, setPeople, groups, currentUser, onClose, onPr
   const saveFinalPlacement = () => {
     setPeople(prev => prev.map(current => current.id === person.id ? normalizePerson({
       ...current,
+      unit: finalPlacement.unit,
       group: finalPlacement.group,
       role: finalPlacement.role,
     }) : current));
@@ -949,17 +979,19 @@ function CandidateDetail({ person, setPeople, groups, currentUser, onClose, onPr
   const allDone = draft.every(step => step.completed);
   const doneCount = draft.filter(step => step.completed).length;
   const activeLabel = draft[doneCount]?.label || recruitmentStageLabels[recruitmentStageLabels.length - 1];
-  const canPromote = allDone && finalPlacement.group && finalPlacement.role;
+  const canPromote = allDone && finalPlacement.unit && finalPlacement.group && finalPlacement.role;
 
   return <Modal title="Rekryteringsprofil" onClose={onClose} wide>
     <div className="profile-head">
       <Avatar person={person} large />
-      <div><h2>{person.name}</h2><p>{person.role || '-'} · {person.group || '-'}</p></div>
+      <div><h2>{person.name}</h2><p>{person.role || '-'} · {person.unit || '-'}</p></div>
       <span className="tag">{person.status === 'Rekrytering' ? `Steg ${doneCount + 1} av ${recruitmentStageLabels.length}` : person.status}</span>
     </div>
     <div className="profile-grid recruitment-summary">
       <div><label>E-post</label><b>{person.email}</b></div>
       <div><label>Telefon</label><b>{person.phone}</b></div>
+      <div><label>Enhet</label><b>{person.unit || '-'}</b></div>
+      <div><label>Grupp</label><b>{person.group || '-'}</b></div>
       <div><label>Tjänstgöringsgrad</label><b>{person.rate} %</b></div>
       <div><label>Aktuellt steg</label><b>{activeLabel}</b></div>
       <div><label>Skapad av</label><b>{formatAudit(person.createdBy, person.createdAt)}</b></div>
@@ -968,9 +1000,12 @@ function CandidateDetail({ person, setPeople, groups, currentUser, onClose, onPr
       {draft.map((step, index) => { const locked = index > 0 && !draft.slice(0, index).every(item => item.completed); return <RecruitmentStepCard key={step.id} stageLabel={recruitmentStageLabels[index]} step={step} index={index} locked={locked} onChange={updateDraft} onSave={saveStep} onUpload={uploadStepDocument} />; })}
     </div>
     <div className="final-placement">
-      <div className="panel-head"><div><h2>Slutlig placering</h2><p>Välj grupp och roll innan kandidaten flyttas till Medarbetare.</p></div></div>
+      <div className="panel-head"><div><h2>Slutlig placering</h2><p>Välj enhet, grupp och roll innan kandidaten flyttas till Medarbetare.</p></div></div>
       <div className="form-grid final-placement-grid">
-        <label>Grupp<select value={finalPlacement.group} onChange={e => setFinalPlacement(prev => ({ ...prev, group: e.target.value }))}>{groups.map(group => <option key={group.id} value={group.name}>{group.name}</option>)}</select></label>
+        <label>Enhet<select value={finalPlacement.unit} onChange={e => setFinalPlacement(prev => ({ ...prev, unit: e.target.value }))}>{groups.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></label>
+        <label>Grupp<select value={finalPlacement.group} onChange={e => setFinalPlacement(prev => ({ ...prev, group: e.target.value }))}>{groupTypes.map(option => <option key={option} value={option}>{option}</option>)}</select></label>
+      </div>
+      <div className="form-grid final-placement-grid">
         <label>Roll<input value={finalPlacement.role} onChange={e => setFinalPlacement(prev => ({ ...prev, role: e.target.value }))} placeholder="Roll i anställning" /></label>
       </div>
       <div className="placement-actions">
@@ -990,16 +1025,17 @@ function EmployeeDetail({ person, setPeople, onClose, onEdit }) {
   return <Modal title="Medarbetarprofil" onClose={onClose} wide>
     <div className="profile-head">
       <Avatar person={person} large />
-      <div><h2>{person.name}</h2><p>{person.role || '-'} · {person.group || '-'}</p></div>
+      <div><h2>{person.name}</h2><p>{person.role || '-'} · {person.unit || '-'}</p></div>
       <button className="secondary small" onClick={onEdit}><Pencil size={15}/>Redigera</button>
     </div>
     <div className="profile-grid">
       <div><label>E-post</label><b>{person.email}</b></div>
       <div><label>Telefon</label><b>{person.phone}</b></div>
       <div><label>Roll</label><b>{person.role || '-'}</b></div>
+      <div><label>Enhet</label><b>{person.unit || '-'}</b></div>
+      <div><label>Grupp</label><b>{person.group || '-'}</b></div>
       <div><label>Utbildning</label><b>{person.education || '-'}</b></div>
       <div><label>Tjänstgöringsgrad</label><b>{person.rate} %</b></div>
-      <div><label>Grupp</label><b>{person.group || '-'}</b></div>
       <div><label>Första anställningsdag</label><b>{person.employmentDate ? new Date(person.employmentDate).toLocaleDateString('sv-SE') : (person.start ? new Date(person.start).toLocaleDateString('sv-SE') : '-')}</b></div>
       <div><label>Provanställning upphör</label><b>{person.probationEnd ? new Date(person.probationEnd).toLocaleDateString('sv-SE') : '-'}</b></div>
       <div><label>Startdatum i systemet</label><b>{person.start ? new Date(person.start).toLocaleDateString('sv-SE') : '-'}</b></div>
@@ -1015,13 +1051,14 @@ function EmployeeDetail({ person, setPeople, onClose, onEdit }) {
   </Modal>;
 }
 
-function EmployeeEditForm({ person, groups, onClose, onSave }) {
+function EmployeeEditForm({ person, groups, groupTypes, onClose, onSave }) {
   // Redigeringsformuläret skriver tillbaka hela personobjektet och håller datumfält för äldre anställningar.
   const [form, setForm] = useState(() => ({
     name: person.name || '',
     email: person.email || '',
     phone: person.phone || '',
-    group: person.group || groupLabel(groups[0]) || '',
+    unit: person.unit || groupLabel(groups[0]) || '',
+    group: person.group || groupTypes[0] || '',
     role: person.role || '',
     education: person.education || '',
     rate: person.rate ?? 100,
@@ -1037,6 +1074,7 @@ function EmployeeEditForm({ person, groups, onClose, onSave }) {
       name: form.name.trim(),
       email: form.email.trim(),
       phone: form.phone.trim(),
+      unit: form.unit,
       group: form.group,
       role: form.role.trim(),
       education: form.education.trim(),
@@ -1053,17 +1091,20 @@ function EmployeeEditForm({ person, groups, onClose, onSave }) {
     <form className="form" onSubmit={submit}>
       <div className="form-grid">
         <label>Namn<input value={form.name} onChange={e => update('name', e.target.value)} required /></label>
-        <label>Grupp<select value={form.group} onChange={e => update('group', e.target.value)}>{groups.map(group => <option key={group.id} value={group.name}>{group.name}</option>)}</select></label>
-      </div>
-      <div className="form-grid">
         <label>E-post<input type="email" value={form.email} onChange={e => update('email', e.target.value)} required /></label>
-        <label>Telefon<input value={form.phone} onChange={e => update('phone', e.target.value)} required /></label>
       </div>
       <div className="form-grid">
-        <label>Roll<input value={form.role} onChange={e => update('role', e.target.value)} required /></label>
-        <label>Utbildning<input value={form.education} onChange={e => update('education', e.target.value)} placeholder="Ex. undersköterska, beteendevetare" /></label>
+        <label>Telefon<input value={form.phone} onChange={e => update('phone', e.target.value)} required /></label>
+        <label>Enhet<select value={form.unit} onChange={e => update('unit', e.target.value)}>{groups.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></label>
       </div>
-      <label>Tjänstgöringsgrad<input type="number" min="0" max="100" value={form.rate} onChange={e => update('rate', e.target.value)} /></label>
+      <div className="form-grid">
+        <label>Grupp<select value={form.group} onChange={e => update('group', e.target.value)}>{groupTypes.map(option => <option key={option} value={option}>{option}</option>)}</select></label>
+        <label>Roll<input value={form.role} onChange={e => update('role', e.target.value)} required /></label>
+      </div>
+      <div className="form-grid">
+        <label>Utbildning<input value={form.education} onChange={e => update('education', e.target.value)} placeholder="Ex. undersköterska, beteendevetare" /></label>
+        <label>Tjänstgöringsgrad<input type="number" min="0" max="100" value={form.rate} onChange={e => update('rate', e.target.value)} /></label>
+      </div>
       <div className="form-grid">
         <label>Första anställningsdag<input type="date" value={form.employmentDate} onChange={e => update('employmentDate', e.target.value)} /></label>
         <label>Provanställning upphör<input type="date" value={form.probationEnd} onChange={e => update('probationEnd', e.target.value)} /></label>
@@ -1073,7 +1114,6 @@ function EmployeeEditForm({ person, groups, onClose, onSave }) {
     </form>
   </Modal>;
 }
-
 function RejectedDetail({ person, onClose, retentionDays }) {
   // Avvisade kandidater visas fortfarande under den tid admin har valt att spara dem.
   return <Modal title="Avvisad kandidat" onClose={onClose} wide>
@@ -1091,91 +1131,119 @@ function RejectedDetail({ person, onClose, retentionDays }) {
   </Modal>;
 }
 
-function PersonDetail({ person, setPeople, groups, currentUser, onClose, onPromote, onReject, retentionDays }) {
+function PersonDetail({ person, setPeople, groups, groupTypes, currentUser, onClose, onPromote, onReject, retentionDays }) {
   // Ett enda valpunkt för alla profiler, där vyerna skiljer sig beroende på status.
   const [editing, setEditing] = useState(false);
   if (person.status === 'Rekrytering') {
-    return <CandidateDetail person={person} setPeople={setPeople} groups={groups} currentUser={currentUser} onClose={onClose} onPromote={onPromote} onReject={onReject} />;
+    return <CandidateDetail person={person} setPeople={setPeople} groups={groups} groupTypes={groupTypes} currentUser={currentUser} onClose={onClose} onPromote={onPromote} onReject={onReject} />;
   }
   if (person.status === 'Avvisad') {
     return <RejectedDetail person={person} onClose={onClose} retentionDays={retentionDays} />;
   }
   if (editing) {
-    return <EmployeeEditForm person={person} groups={groups} onClose={() => setEditing(false)} onSave={updated => { setPeople(prev => prev.map(current => current.id === updated.id ? normalizePerson(updated) : current)); setEditing(false); }} />;
+    return <EmployeeEditForm person={person} groups={groups} groupTypes={groupTypes} onClose={() => setEditing(false)} onSave={updated => { setPeople(prev => prev.map(current => current.id === updated.id ? normalizePerson(updated) : current)); setEditing(false); }} />;
   }
   return <EmployeeDetail person={person} setPeople={setPeople} onClose={onClose} onEdit={() => setEditing(true)} />;
 }
 
-function Groups({ groups, setGroups, people }) {
-  // Gruppvyn används för att administrera organisationens indelning, namn och typ.
-  const [name, setName] = useState('');
-  const [type, setType] = useState(initialGroupTypes[0]);
-  const [editingId, setEditingId] = useState(null);
-  const [draftName, setDraftName] = useState('');
-  const [draftType, setDraftType] = useState(initialGroupTypes[0]);
+function Groups({ groups, groupTypes, setGroups, setGroupTypes, people, setPeople }) {
+  // Gruppvyn används för att administrera organisationens enheter och grupper som två separata listor.
+  const [newGroupType, setNewGroupType] = useState('');
+  const [newUnit, setNewUnit] = useState('');
+  const [editingGroupType, setEditingGroupType] = useState(null);
+  const [editingUnit, setEditingUnit] = useState(null);
+  const [draftGroupType, setDraftGroupType] = useState('');
+  const [draftUnit, setDraftUnit] = useState('');
 
-  const updateGroup = (id, patch) => {
-    setGroups(prev => prev.map(group => group.id === id ? { ...group, ...patch } : group));
+  const updateGroupType = (prevValue, nextValue) => {
+    const trimmed = nextValue.trim();
+    if (!trimmed) return;
+    setGroupTypes(prev => prev.map(value => value === prevValue ? trimmed : value));
+    setPeople(prev => prev.map(person => person.group === prevValue ? { ...person, group: trimmed } : person));
   };
 
-  const beginEdit = group => {
-    setEditingId(group.id);
-    setDraftName(group.name);
-    setDraftType(group.type);
+  const updateUnit = (prevValue, nextValue) => {
+    const trimmed = nextValue.trim();
+    if (!trimmed) return;
+    setGroups(prev => prev.map(value => value === prevValue ? trimmed : value));
+    setPeople(prev => prev.map(person => person.unit === prevValue ? { ...person, unit: trimmed } : person));
   };
 
-  const saveEdit = id => {
-    if (!draftName.trim()) return;
-    updateGroup(id, { name: draftName.trim(), type: draftType });
-    setEditingId(null);
+  const removeGroupType = value => {
+    setGroupTypes(prev => prev.filter(item => item !== value));
+    setPeople(prev => prev.map(person => person.group === value ? { ...person, group: '' } : person));
   };
 
-  const cancelEdit = () => {
-    setEditingId(null);
+  const removeUnit = value => {
+    setGroups(prev => prev.filter(item => item !== value));
+    setPeople(prev => prev.map(person => person.unit === value ? { ...person, unit: '' } : person));
   };
 
-  const addGroup = e => {
-    e.preventDefault();
-    if (!name.trim()) return;
-    setGroups(prev => [...prev, { id: Date.now(), name: name.trim(), type }]);
-    setName('');
-    setType(initialGroupTypes[0]);
+  const addGroupType = event => {
+    event.preventDefault();
+    const value = newGroupType.trim();
+    if (!value || groupTypes.includes(value)) return;
+    setGroupTypes(prev => [...prev, value]);
+    setNewGroupType('');
+  };
+
+  const addUnit = event => {
+    event.preventDefault();
+    const value = newUnit.trim();
+    if (!value || groups.includes(value)) return;
+    setGroups(prev => [...prev, value]);
+    setNewUnit('');
   };
 
   return <>
-    <PageHeader title="Grupper" subtitle="Sortera personer efter enhet, arbetsplats eller anställningsform" />
-    <form className="panel group-create-panel" onSubmit={addGroup}>
-      <div className="panel-head"><div><h2>Skapa grupp</h2><p>Lägg till en enhet eller arbetsplats i organisationen.</p></div></div>
-      <div className="group-create-fields">
-        <label><span>Gruppnamn</span><input value={name} onChange={e => setName(e.target.value)} placeholder="Namn på ny enhet" required /></label>
-        <label><span>Typ</span><select value={type} onChange={e => setType(e.target.value)}>{initialGroupTypes.map(option => <option key={option}>{option}</option>)}</select></label>
-        <button className="primary"><Plus size={17}/>Skapa grupp</button>
-      </div>
-    </form>
-    <section className="panel group-text-panel">
-      <div className="panel-head"><div><h2>Befintliga grupper</h2></div><span className="tag">{groups.length} grupper</span></div>
-      <div className="group-text-list">
-        {groups.map(group => <div className="group-text-row" key={group.id}>
-          <div className="group-row-icon"><Building2 size={20}/></div>
-          <div className="group-text-main"><strong>{group.name}</strong><span>{group.type}</span></div>
-          <span className="group-member-count">{people.filter(person => person.group === group.name).length} personer</span>
-          <button type="button" className="secondary small" onClick={() => beginEdit(group)} aria-label={"Redigera " + group.name}><Pencil size={15}/>Redigera</button>
-          {editingId === group.id ? <div className="group-text-edit">
-            <label><span>Gruppnamn</span><input className="group-name" value={draftName} onChange={e => setDraftName(e.target.value)} placeholder="Namn på enhet" /></label>
-            <label><span>Typ</span><select className="group-type" value={draftType} onChange={e => setDraftType(e.target.value)}>{initialGroupTypes.map(option => <option key={option}>{option}</option>)}</select></label>
-            <div className="group-edit-actions"><button type="button" className="secondary small" onClick={cancelEdit}>Avbryt</button><button type="button" className="primary small" onClick={() => saveEdit(group.id)}>Spara ändringar</button></div>
-          </div> : null}
-        </div>)}
-      </div>
-    </section>
+    <PageHeader title="Grupper" subtitle="Administrera enheter och grupper som två separata listor" />
+    <div className="group-admin-grid">
+      <section className="panel group-text-panel">
+        <div className="panel-head"><div><h2>Grupper</h2><p>HVB, LSS, Skola och andra gruppindelningar.</p></div><span className="tag">{groupTypes.length} grupper</span></div>
+        <form className="group-create-fields group-inline-form" onSubmit={addGroupType}>
+          <label><span>Ny grupp</span><input value={newGroupType} onChange={e => setNewGroupType(e.target.value)} placeholder="Ex. LSS" /></label>
+          <button className="primary" type="submit"><Plus size={17}/>Lägg till grupp</button>
+        </form>
+        <div className="group-text-list">
+          {groupTypes.map(value => <div className="group-text-row" key={value}>
+            <div className="group-row-icon"><Building2 size={20}/></div>
+            <div className="group-text-main"><strong>{value}</strong><span>{people.filter(person => person.group === value).length} personer</span></div>
+            <button type="button" className="secondary small" onClick={() => { setEditingGroupType(value); setDraftGroupType(value); }} aria-label={`Redigera ${value}`}><Pencil size={15}/>Redigera</button>
+            <button type="button" className="secondary small danger" onClick={() => removeGroupType(value)} aria-label={`Ta bort ${value}`}><Trash2 size={15}/>Ta bort</button>
+            {editingGroupType === value ? <div className="group-text-edit">
+              <label><span>Grupp</span><input className="group-name" value={draftGroupType} onChange={e => setDraftGroupType(e.target.value)} placeholder="Nytt gruppnamn" /></label>
+              <div className="group-edit-actions"><button type="button" className="secondary small" onClick={() => setEditingGroupType(null)}>Avbryt</button><button type="button" className="primary small" onClick={() => { updateGroupType(value, draftGroupType); setEditingGroupType(null); }}>Spara ändringar</button></div>
+            </div> : null}
+          </div>)}
+        </div>
+      </section>
+      <section className="panel group-text-panel">
+        <div className="panel-head"><div><h2>Enheter</h2><p>Örjanshuset, Skogshuset, Prachthuset och andra enheter.</p></div><span className="tag">{groups.length} enheter</span></div>
+        <form className="group-create-fields group-inline-form" onSubmit={addUnit}>
+          <label><span>Ny enhet</span><input value={newUnit} onChange={e => setNewUnit(e.target.value)} placeholder="Ex. Örjanshuset" /></label>
+          <button className="primary" type="submit"><Plus size={17}/>Lägg till enhet</button>
+        </form>
+        <div className="group-text-list">
+          {groups.map(value => <div className="group-text-row" key={value}>
+            <div className="group-row-icon"><Building2 size={20}/></div>
+            <div className="group-text-main"><strong>{value}</strong><span>{people.filter(person => person.unit === value).length} personer</span></div>
+            <button type="button" className="secondary small" onClick={() => { setEditingUnit(value); setDraftUnit(value); }} aria-label={`Redigera ${value}`}><Pencil size={15}/>Redigera</button>
+            <button type="button" className="secondary small danger" onClick={() => removeUnit(value)} aria-label={`Ta bort ${value}`}><Trash2 size={15}/>Ta bort</button>
+            {editingUnit === value ? <div className="group-text-edit">
+              <label><span>Enhet</span><input className="group-name" value={draftUnit} onChange={e => setDraftUnit(e.target.value)} placeholder="Nytt enhetsnamn" /></label>
+              <div className="group-edit-actions"><button type="button" className="secondary small" onClick={() => setEditingUnit(null)}>Avbryt</button><button type="button" className="primary small" onClick={() => { updateUnit(value, draftUnit); setEditingUnit(null); }}>Spara ändringar</button></div>
+            </div> : null}
+          </div>)}
+        </div>
+      </section>
+    </div>
   </>;
 }
-
 function ImportExport({ people }) {
   // Exporten delar samma datamodell som resten av appen så att personregistret går att flytta vidare.
   const exportCsv = () => {
-    const header = 'Namn,E-post,Telefon,Grupp,Roll,Tjänstgöringsgrad';
-    const body = people.map(person => [person.name, person.email, person.phone, person.group, person.role, person.rate].map(value => `"${value}"`).join(',')).join('\n');
+    const header = 'Namn,E-post,Telefon,Enhet,Grupp,Roll,Tjänstgöringsgrad';
+    const body = people.map(person => [person.name, person.email, person.phone, person.unit, person.group, person.role, person.rate].map(value => `"${value}"`).join(',')).join('\n');
     const url = URL.createObjectURL(new Blob([`${header}\n${body}`], { type: 'text/csv;charset=utf-8' }));
     const a = document.createElement('a');
     a.href = url;
@@ -1346,7 +1414,7 @@ function Admin({ groups, people, admins, setAdmins, currentUser, onCurrentUserUp
       <section><ShieldCheck/><div><h3>Behörigheter</h3><p>HR-ansvariga kan se allt. Användare kan också ändra struktur och inställningar.</p></div><span className="tag">Aktivt</span></section>
       <section><ListChecks/><div><h3>Rekryteringsflöde</h3><p>{recruitmentStageLabels.length} obligatoriska steg är aktiva.</p></div><span className="tag">Aktivt</span></section>
       <section><Clock3/><div><h3>Avvisade kandidater</h3><p>Sparas i valda dagar innan de rensas ur arkivet.</p></div><label className="admin-number"><input type="number" min="1" max="3650" value={retentionDays} onChange={e => setRetentionDays(Math.max(1, Number(e.target.value) || 1))} /> dagar</label></section>
-      <section><Shapes/><div><h3>Organisation</h3><p>{groups.length} grupper och {people.length} profiler.</p></div><span className="tag">Synkroniserat</span></section>
+      <section><Shapes/><div><h3>Organisation</h3><p>{groupTypes.length} grupper och {groups.length} enheter.</p></div><span className="tag">Synkroniserat</span></section>
     </div>
   </>;
 }
@@ -1357,6 +1425,7 @@ function App() {
   const [active, setActive] = useState('Översikt');
   const [people, setPeople] = useState(seed.people);
   const [groups, setGroups] = useState(seed.groups);
+  const [groupTypes, setGroupTypes] = useState(seed.groupTypes);
   const [calendarEvents, setCalendarEvents] = useState(seed.calendarEvents);
   const [admins, setAdmins] = useState(seed.admins);
   const [currentUser, setCurrentUser] = useState(() => {
@@ -1381,7 +1450,7 @@ function App() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const peopleGroupOptions = ["Alla", ...Array.from(new Set([...groups.map(groupLabel), ...people.map(person => person.group).filter(Boolean)]))];
+  const peopleGroupOptions = ["Alla", ...Array.from(new Set([...groups, ...people.map(person => person.unit).filter(Boolean)]))];
   const hasPeopleFilters = Boolean(query.trim() || groupFilter !== "Alla" || dateFrom || dateTo);
   const navigateTo = label => {
     setActive(label);
@@ -1406,12 +1475,11 @@ function App() {
         const shouldMigrateLocal = (!Array.isArray(state.people) || state.people.length === 0) && localBackup.people.length > 0;
         const source = shouldMigrateLocal ? localBackup : state;
         const nextAdmins = ensureSeedUsers(source.admins || []);
-        setPeople(normalizePeople(Array.isArray(source.people) ? source.people : []));
-        setGroups((Array.isArray(source.groups) && source.groups.length ? source.groups : initialGroups).map(group => (
-          group && group.name === 'Vikarier' && group.type !== 'Vikarier'
-            ? { ...group, type: 'Vikarier' }
-            : group
-        )));
+        const legacyGroups = Array.isArray(source.groups) ? source.groups : [];
+        const unitToGroupType = new Map(legacyGroups.map(group => [typeof group === 'string' ? group : group?.name || group?.unit || '', typeof group === 'string' ? '' : group?.type || group?.groupType || '']).filter(([unit]) => Boolean(unit)));
+        setPeople(normalizePeople(Array.isArray(source.people) ? source.people : [], unitToGroupType));
+        setGroups(normalizeGroups(Array.isArray(source.groups) && source.groups.length ? source.groups : initialGroups));
+        setGroupTypes(normalizeGroupTypes(Array.isArray(source.groupTypes) && source.groupTypes.length ? source.groupTypes : (legacyGroups.length ? legacyGroups.map(group => typeof group === 'string' ? group : group?.type || group?.groupType || '') : initialGroupTypes)));
         setCalendarEvents(Array.isArray(source.calendarEvents) ? source.calendarEvents : []);
         setAdmins(nextAdmins);
         setRetentionDays(Number(source.retentionDays) || defaultRetentionDays);
@@ -1436,7 +1504,7 @@ function App() {
 
   useEffect(() => {
     if (backendLoading) return;
-    const state = { people, groups, calendarEvents, admins, retentionDays, colorTheme };
+    const state = { people, groups, groupTypes, calendarEvents, admins, retentionDays, colorTheme };
     localStorage.setItem(storageKey, JSON.stringify(state));
     saveBackendState(state).catch(() => setBackendError('Kunde inte spara till backend. Kontrollera att servern kör.'));
   }, [people, groups, calendarEvents, admins, retentionDays, colorTheme, backendLoading]);
@@ -1465,6 +1533,7 @@ function App() {
   const promoteCandidate = (id, finalPlacement = {}) => {
     updatePerson(id, person => ({
       ...person,
+      unit: finalPlacement.unit || person.unit,
       group: finalPlacement.group || person.group,
       role: finalPlacement.role || person.role,
       status: 'Anställd',
@@ -1497,16 +1566,15 @@ function App() {
   };
 
   const page = useMemo(() => {
-    const common = { people, groups, setPeople, setSelectedId };
     if (hasPeopleFilters) return <PeopleSearchResults people={people} groups={groups} query={query} groupFilter={groupFilter} dateFrom={dateFrom} dateTo={dateTo} setSelectedId={setSelectedId} />;
     if (active === 'Översikt') return <Overview people={people} onOpenRecruitment={() => setNewRecruitmentOpen(true)} onOpenFilters={() => setFiltersOpen(true)} />;
     if (active === 'Medarbetare') return <Employees people={people} groups={groups} query={query} setSelectedId={setSelectedId} onAdd={() => setNewEmployeeOpen(true)} onOpenFilters={() => setFiltersOpen(true)} />;
     if (active === 'Rekrytering') return <Recruitment people={people} setPeople={setPeople} setSelectedId={setSelectedId} retentionDays={retentionDays} currentUser={currentUser} onAdd={() => setNewRecruitmentOpen(true)} />;
     if (active === 'Kalender') return <Calendar people={people} calendarEvents={calendarEvents} setCalendarEvents={setCalendarEvents} />;
-    if (active === 'Grupper') return <Groups groups={groups} setGroups={setGroups} people={people} />;
+    if (active === 'Grupper') return <Groups groups={groups} groupTypes={groupTypes} setGroups={setGroups} setGroupTypes={setGroupTypes} people={people} setPeople={setPeople} />;
     if (active === 'Import & export') return <ImportExport people={people} />;
     return <Admin groups={groups} people={people} admins={admins} setAdmins={setAdmins} currentUser={currentUser} onCurrentUserUpdate={updateCurrentUser} retentionDays={retentionDays} setRetentionDays={setRetentionDays} colorTheme={colorTheme} setColorTheme={setColorTheme} />;
-  }, [active, people, groups, query, groupFilter, dateFrom, dateTo, hasPeopleFilters, admins, currentUser, retentionDays, colorTheme]);
+  }, [active, people, groups, groupTypes, query, groupFilter, dateFrom, dateTo, hasPeopleFilters, admins, currentUser, retentionDays, colorTheme]);
 
   if (backendLoading) {
     return <div className="login-shell"><section className="login-panel"><div className="login-brand"><strong>Folk<span>.</span></strong><small>Medarbetarkoll</small></div><p className="loading-state">Laddar data från backend...</p></section></div>;
@@ -1532,14 +1600,14 @@ function App() {
     <div className="main-wrap">
       <header className="topbar">
         <button className="mobile-menu" aria-label="Öppna meny" onClick={() => setMenu(!menu)}><Menu/></button>
-        <div className="search"><Search size={18}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Sök namn, roll, e-post, telefon eller grupp"/></div>
+        <div className="search"><Search size={18}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Sök namn, roll, e-post, telefon, enhet eller grupp"/></div>
         <button className={hasPeopleFilters ? "secondary topbar-filter active" : "secondary topbar-filter"} aria-expanded={filtersOpen} onClick={() => setFiltersOpen(!filtersOpen)}><SlidersHorizontal size={17}/><span>Filter</span></button>
         <button className="icon-btn" aria-label="Notiser"><Bell size={20}/></button>
         <button className="user"><span>{userInitials(currentUser.name)}</span><b>{currentUser.name}</b></button>
         <button className="icon-btn" aria-label="Logga ut" onClick={logout}><LogOut size={19}/></button>
       </header>
       {filtersOpen ? <div className="people-filter-bar">
-        <label><span>Grupp</span><select value={groupFilter} onChange={e => setGroupFilter(e.target.value)}>{peopleGroupOptions.map(option => <option key={option}>{option}</option>)}</select></label>
+        <label><span>Enhet</span><select value={groupFilter} onChange={e => setGroupFilter(e.target.value)}>{peopleGroupOptions.map(option => <option key={option}>{option}</option>)}</select></label>
         <label><span>Från och med</span><input type="date" value={dateFrom} max={dateTo || undefined} onChange={e => setDateFrom(e.target.value)} /></label>
         <label><span>Till och med</span><input type="date" value={dateTo} min={dateFrom || undefined} onChange={e => setDateTo(e.target.value)} /></label>
         <button className="secondary" disabled={!hasPeopleFilters} onClick={() => { setQuery(""); setGroupFilter("Alla"); setDateFrom(""); setDateTo(""); }}>Rensa allt</button>
@@ -1547,8 +1615,8 @@ function App() {
       <main>{backendError ? <div className="backend-alert">{backendError}</div> : null}{page}</main>
     </div>
     {newRecruitmentOpen ? <Modal title="Ny Rekrytering" onClose={() => setNewRecruitmentOpen(false)}><PersonForm actor={currentUser} onClose={() => setNewRecruitmentOpen(false)} onSave={person => { setPeople(prev => [...prev, person]); setNewRecruitmentOpen(false); setActive('Rekrytering'); }} /></Modal> : null}
-    {newEmployeeOpen ? <Modal title="Lägg till medarbetare" onClose={() => setNewEmployeeOpen(false)}><EmployeeForm groups={groups} actor={currentUser} onClose={() => setNewEmployeeOpen(false)} onSave={person => { setPeople(prev => [...prev, person]); setNewEmployeeOpen(false); setActive('Medarbetare'); }} /></Modal> : null}
-    {selectedPerson ? <PersonDetail person={selectedPerson} setPeople={setPeople} groups={groups} currentUser={currentUser} onClose={() => setSelectedId(null)} onPromote={promoteCandidate} onReject={rejectCandidate} retentionDays={retentionDays} /> : null}
+    {newEmployeeOpen ? <Modal title="Lägg till medarbetare" onClose={() => setNewEmployeeOpen(false)}><EmployeeForm groups={groups} groupTypes={groupTypes} actor={currentUser} onClose={() => setNewEmployeeOpen(false)} onSave={person => { setPeople(prev => [...prev, person]); setNewEmployeeOpen(false); setActive('Medarbetare'); }} /></Modal> : null}
+    {selectedPerson ? <PersonDetail person={selectedPerson} setPeople={setPeople} groups={groups} groupTypes={groupTypes} currentUser={currentUser} onClose={() => setSelectedId(null)} onPromote={promoteCandidate} onReject={rejectCandidate} retentionDays={retentionDays} /> : null}
   </div>;
 }
 
