@@ -13,7 +13,7 @@ const port = Number(process.env.PORT || 8020);
 const initialGroups = [
   { id: 1, name: 'Örjanshuset', type: 'LSS' },
   { id: 2, name: 'Skogshuset', type: 'LSS' },
-  { id: 3, name: 'Vikarier', type: 'Verksamhetsstöd' },
+  { id: 3, name: 'Vikarier', type: 'Vikarier' },
 ];
 const initialAdmins = [
   { id: 1, name: 'Tobias Glad', email: 'tobias.glad@mikaelgarden.se', role: 'Admin', password: 'Herzen222' },
@@ -26,10 +26,16 @@ const initialPeopleSeed = [
   { id: 5, name: 'Linnea Karlsson', initials: 'LK', email: 'linnea.karlsson@folk.se', phone: '076-228 18 19', group: 'Skogshuset', role: 'Stödassistent', rate: 75, stage: 4, status: 'Anställd', start: '2026-01-12', employmentDate: '2026-01-12', probationEnd: '2026-09-02', color: '#eee0d7' },
   { id: 6, name: 'Jonas Nilsson', initials: 'JN', email: 'jonas.nilsson@folk.se', phone: '070-225 91 02', group: 'Vikarier', role: 'Timvikarie', rate: 40, stage: 4, status: 'Anställd', start: '2026-03-10', employmentDate: '2026-03-10', probationEnd: '2026-09-15', color: '#dbe8df' },
 ];
+const normalizeGroups = groups => groups.map(group => (
+  group && group.name === 'Vikarier' && group.type !== 'Vikarier'
+    ? { ...group, type: 'Vikarier' }
+    : group
+));
+
 
 const seedState = {
   people: initialPeopleSeed,
-  groups: initialGroups,
+  groups: normalizeGroups(initialGroups),
   calendarEvents: [],
   admins: initialAdmins,
   retentionDays: 30,
@@ -84,7 +90,7 @@ function readState() {
     if (hasBadInitialSeed) {
       return writeState(seedState);
     }
-    return state;
+    return { ...state, groups: normalizeGroups(Array.isArray(state.groups) ? state.groups : seedState.groups) };
   } catch {
     return seedState;
   }
@@ -93,7 +99,7 @@ function readState() {
 function writeState(state) {
   const next = ensureSeedUsers({
     people: Array.isArray(state.people) ? state.people : [],
-    groups: Array.isArray(state.groups) ? state.groups : seedState.groups,
+    groups: normalizeGroups(Array.isArray(state.groups) ? state.groups : seedState.groups),
     calendarEvents: Array.isArray(state.calendarEvents) ? state.calendarEvents : [],
     admins: Array.isArray(state.admins) ? state.admins : seedState.admins,
     retentionDays: Number(state.retentionDays) || seedState.retentionDays,

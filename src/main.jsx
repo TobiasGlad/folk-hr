@@ -10,7 +10,7 @@ import './styles.css';
 
 // Första datamängden är lokal och fungerar som seed tills appen kopplas mot backend.
 const recruitmentStageLabels = ['CV', 'Registerutdrag', 'Provpass', 'Checklista'];
-const initialGroupTypes = ['LSS', 'HVB', 'Skola', 'Verksamhetsstöd', 'Assistent', 'Administration'];
+const initialGroupTypes = ['LSS', 'HVB', 'Skola', 'Verksamhetsstöd', 'Assistent', 'Administration', 'Vikarier'];
 const defaultColorTheme = 'folk';
 const colorThemes = [
   { id: 'folk', name: 'Folk', description: 'Nuvarande gröna färgskala', colors: ['#0c5948', '#e5f0ec', '#f4f7f6'] },
@@ -19,7 +19,7 @@ const colorThemes = [
 const initialGroups = [
   { id: 1, name: 'Örjanshuset', type: 'LSS' },
   { id: 2, name: 'Skogshuset', type: 'LSS' },
-  { id: 3, name: 'Vikarier', type: 'Verksamhetsstöd' },
+  { id: 3, name: 'Vikarier', type: 'Vikarier' },
 ];
 const initialAdmins = [
   { id: 1, name: 'Tobias Glad', email: 'tobias.glad@mikaelgarden.se', role: 'Admin', password: 'Herzen222' },
@@ -317,9 +317,14 @@ function formatAudit(actor, dateIso) {
 }
 
 function loadState() {
+  const normalizeGroups = groups => groups.map(group => (
+    group && group.name === 'Vikarier' && group.type !== 'Vikarier'
+      ? { ...group, type: 'Vikarier' }
+      : group
+  ));
   const fallback = {
     people: normalizePeople(initialPeopleSeed),
-    groups: initialGroups,
+    groups: normalizeGroups(initialGroups),
     calendarEvents: [],
     admins: ensureSeedUsers(initialAdmins),
     retentionDays: defaultRetentionDays,
@@ -331,7 +336,7 @@ function loadState() {
     const parsed = JSON.parse(raw);
     return {
       people: normalizePeople(Array.isArray(parsed.people) ? parsed.people : fallback.people),
-      groups: Array.isArray(parsed.groups) && parsed.groups.length ? parsed.groups : fallback.groups,
+      groups: normalizeGroups(Array.isArray(parsed.groups) && parsed.groups.length ? parsed.groups : fallback.groups),
       calendarEvents: Array.isArray(parsed.calendarEvents) ? parsed.calendarEvents : fallback.calendarEvents,
       admins: ensureSeedUsers(Array.isArray(parsed.admins) && parsed.admins.length ? parsed.admins : fallback.admins),
       retentionDays: Number(parsed.retentionDays) || fallback.retentionDays,
@@ -1386,7 +1391,11 @@ function App() {
         const source = shouldMigrateLocal ? localBackup : state;
         const nextAdmins = ensureSeedUsers(source.admins || []);
         setPeople(normalizePeople(Array.isArray(source.people) ? source.people : []));
-        setGroups(Array.isArray(source.groups) && source.groups.length ? source.groups : initialGroups);
+        setGroups((Array.isArray(source.groups) && source.groups.length ? source.groups : initialGroups).map(group => (
+          group && group.name === 'Vikarier' && group.type !== 'Vikarier'
+            ? { ...group, type: 'Vikarier' }
+            : group
+        )));
         setCalendarEvents(Array.isArray(source.calendarEvents) ? source.calendarEvents : []);
         setAdmins(nextAdmins);
         setRetentionDays(Number(source.retentionDays) || defaultRetentionDays);
