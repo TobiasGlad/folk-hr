@@ -642,10 +642,11 @@ function Employees({ people, groups, query, setSelectedId, onAdd, onOpenFilters 
   </>;
 }
 
-function PeopleSearchResults({ people, query, groupFilter, dateFrom, dateTo, setSelectedId }) {
+function PeopleSearchResults({ people, groups, query, groupFilter, dateFrom, dateTo, setSelectedId }) {
   const normalized = query.trim().toLocaleLowerCase("sv");
+  const groupTypeByName = groupName => groupType(groups.find(group => groupLabel(group) === groupName)) || "-";
   const rows = people.filter(person => {
-    const searchable = [person.name, person.role, person.group, person.email, person.phone, person.status].filter(Boolean).join(" ").toLocaleLowerCase("sv");
+    const searchable = [person.name, person.role, person.group, groupTypeByName(person.group), person.email, person.phone, person.status].filter(Boolean).join(" ").toLocaleLowerCase("sv");
     const personDate = person.employmentDate || person.start || "";
     const matchesQuery = !normalized || searchable.includes(normalized);
     const matchesGroup = groupFilter === "Alla" || person.group === groupFilter;
@@ -657,12 +658,13 @@ function PeopleSearchResults({ people, query, groupFilter, dateFrom, dateTo, set
   return <>
     <PageHeader title="Sökresultat" subtitle={`${rows.length} personer matchar valda sök- och filtervillkor`} />
     <section className="panel people-search-panel">
-      <div className="people-search-head"><span>Person</span><span>Grupp</span><span>Anställnings-/startdatum</span><span>Status</span><span /></div>
+      <div className="people-search-head"><span>Person</span><span>Grupp</span><span>Grupptyp</span><span>Anställnings-/startdatum</span><span>Status</span><span /></div>
       {rows.length ? rows.map(person => {
         const personDate = person.employmentDate || person.start;
         return <button className="people-search-row" key={person.id} onClick={() => setSelectedId(person.id)}>
           <span className="person-cell"><Avatar person={person}/><span><b>{person.name}</b><small>{person.role || person.email}</small></span></span>
           <span>{person.group || "-"}</span>
+          <span>{groupTypeByName(person.group)}</span>
           <span>{personDate ? formatDate(personDate) : "-"}</span>
           <span><span className={person.status === "Avvisad" ? "tag danger" : "tag"}>{person.status}</span></span>
           <ChevronRight size={17}/>
@@ -1487,7 +1489,7 @@ function App() {
 
   const page = useMemo(() => {
     const common = { people, groups, setPeople, setSelectedId };
-    if (hasPeopleFilters) return <PeopleSearchResults people={people} query={query} groupFilter={groupFilter} dateFrom={dateFrom} dateTo={dateTo} setSelectedId={setSelectedId} />;
+    if (hasPeopleFilters) return <PeopleSearchResults people={people} groups={groups} query={query} groupFilter={groupFilter} dateFrom={dateFrom} dateTo={dateTo} setSelectedId={setSelectedId} />;
     if (active === 'Översikt') return <Overview people={people} onOpenRecruitment={() => setNewRecruitmentOpen(true)} onOpenFilters={() => setFiltersOpen(true)} />;
     if (active === 'Medarbetare') return <Employees people={people} groups={groups} query={query} setSelectedId={setSelectedId} onAdd={() => setNewEmployeeOpen(true)} onOpenFilters={() => setFiltersOpen(true)} />;
     if (active === 'Rekrytering') return <Recruitment people={people} setPeople={setPeople} setSelectedId={setSelectedId} retentionDays={retentionDays} currentUser={currentUser} onAdd={() => setNewRecruitmentOpen(true)} />;
