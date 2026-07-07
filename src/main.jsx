@@ -623,7 +623,8 @@ function Overview({ people, onOpenRecruitment, onOpenFilters }) {
 function Employees({ people, groups, query, setSelectedId, onAdd, onOpenFilters }) {
   // Medarbetarvyn filtrerar först och grupperar sedan så att listan går att läsa snabbt.
   const normalized = query.toLowerCase();
-  const rows = people.filter(person => person.status === 'Anställd' && `${person.name} ${person.group} ${person.role} ${person.education || ""}`.toLowerCase().includes(normalized));
+  const groupTypeByName = groupName => groupType(groups.find(group => groupLabel(group) === groupName)) || "-";
+  const rows = people.filter(person => person.status === "Anställd" && `${person.name} ${person.group} ${person.role} ${person.education || ""} ${groupTypeByName(person.group)}`.toLowerCase().includes(normalized));
   const grouped = rows.reduce((acc, person) => {
     acc[person.group] = acc[person.group] || [];
     acc[person.group].push(person);
@@ -635,8 +636,8 @@ function Employees({ people, groups, query, setSelectedId, onAdd, onOpenFilters 
     <PageHeader title="Medarbetare" subtitle={`${rows.length} aktiva profiler`} onAdd={onAdd} addLabel="Lägg till medarbetare" />
     <section className="panel list-panel">
       <div className="panel-head"><h2>Alla medarbetare</h2><button className="secondary small" onClick={onOpenFilters}><SlidersHorizontal size={16}/>Filtrera</button></div>
-      <div className="employee-head"><span>Medarbetare</span><span>Grupp</span><span>Utbildning</span><span>Tjänstgöringsgrad</span><span>Provanställning upphör</span><span/></div>
-      {rows.length ? orderedGroups.map(group => { const groupName = groupLabel(group); return <div key={groupName} className="group-section"><div className="group-section-head"><h3>{groupName}</h3><span>{(grouped[groupName] || []).length} personer</span></div>{(grouped[groupName] || []).map(person => <button className="employee-row" key={person.id} onClick={() => setSelectedId(person.id)}><span className="person-cell"><Avatar person={person}/><span><b>{person.name}</b><small>{person.role}</small></span></span><span>{person.group}</span><span>{person.education || "-"}</span><span>{person.rate} %</span><span>{person.probationEnd ? new Date(person.probationEnd).toLocaleDateString('sv-SE') : '-'}</span><ChevronRight size={17}/></button>)}</div>; }) : <div className="empty-state">Inga aktiva medarbetare matchar sökningen.</div>}
+      <div className="employee-head"><span>Medarbetare</span><span>Grupp</span><span>Grupptyp</span><span>Utbildning</span><span>Tjänstgöringsgrad</span><span>Provanställning upphör</span><span/></div>
+      {rows.length ? orderedGroups.map(group => { const groupName = groupLabel(group); return <div key={groupName} className="group-section"><div className="group-section-head"><h3>{groupName}</h3><span>{(grouped[groupName] || []).length} personer</span></div>{(grouped[groupName] || []).map(person => <button className="employee-row" key={person.id} onClick={() => setSelectedId(person.id)}><span className="person-cell"><Avatar person={person}/><span><b>{person.name}</b><small>{person.role}</small></span></span><span>{person.group}</span><span>{groupTypeByName(person.group)}</span><span>{person.education || "-"}</span><span>{person.rate} %</span><span>{person.probationEnd ? new Date(person.probationEnd).toLocaleDateString("sv-SE") : "-"}</span><ChevronRight size={17}/></button>)}</div>; }) : <div className="empty-state">Inga aktiva medarbetare matchar sökningen.</div>}
     </section>
   </>;
 }
