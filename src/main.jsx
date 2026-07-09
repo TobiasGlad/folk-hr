@@ -1087,7 +1087,7 @@ function App() {
 
   return <div className="app-shell">
     <aside className={`sidebar ${menu ? 'open' : ''}`}>
-      <div className="brand"><strong>Folk<span>.</span></strong><small>HR-system</small></div>
+      <div className="brand"><strong>Folk<span>.</span></strong><small>Medarbetarkoll</small></div>
       <nav>{[
         ['Översikt', LayoutDashboard],
         ['Medarbetare', Users],
