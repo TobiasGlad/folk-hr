@@ -123,6 +123,11 @@
 .group-text-edit{grid-column:1/-1;display:grid;grid-template-columns:minmax(220px,1fr) minmax(180px,.7fr) auto;gap:12px;align-items:end;margin-top:2px;padding:16px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
 .group-edit-actions{display:flex;gap:8px;justify-content:flex-end}
 @media(max-width:1050px){.group-admin-grid{grid-template-columns:1fr}}
+
+.type-checks{display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-height:40px}
+.type-checks label{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fff;font-size:12px;font-weight:600;color:var(--text)}
+.type-checks input{width:auto;height:auto;margin:0;box-shadow:none!important}
+.group-create-fields .type-checks{align-self:stretch}
 @media(max-width:720px){.group-create-fields{grid-template-columns:1fr}.group-create-fields .primary{width:100%}.group-text-row{grid-template-columns:42px 1fr}.group-member-count{grid-column:2}.group-text-row>.secondary{grid-column:2;justify-self:start}.group-text-edit{grid-template-columns:1fr}.group-edit-actions{justify-content:stretch}.group-edit-actions .primary,.group-edit-actions .secondary{flex:1}}
 .final-placement{margin:0 20px 18px;border:1px solid var(--line);border-radius:10px;background:#fff;overflow:hidden}.final-placement .panel-head{border-bottom:1px solid var(--line)}.final-placement-grid{padding:16px 20px 0}.placement-actions{padding:14px 20px 18px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 

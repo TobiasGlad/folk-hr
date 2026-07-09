@@ -9,13 +9,18 @@ import {
 import './styles.css';
 
 // Första datamängden är lokal och fungerar som seed tills appen kopplas mot backend.
-const initialGroupTypes = ['LSS', 'HVB', 'Skola'];
+const groupCategoryOptions = ['LSS', 'HVB', 'Skola', 'Verksamhet'];
+const initialGroupTypes = groupCategoryOptions;
 const defaultColorTheme = 'folk';
 const colorThemes = [
   { id: 'folk', name: 'Folk', description: 'Nuvarande gröna färgskala', colors: ['#0c5948', '#e5f0ec', '#f4f7f6'] },
   { id: 'mikaelgarden', name: 'Mikaelgården', description: 'Profilfärger från mikaelgarden.se', colors: ['#a64356', '#ebdcb1', '#f7f8f3'] },
 ];
-const initialGroups = ['Björkhagen', 'Solbacken', 'Ängslyckan'];
+const initialGroups = [
+  { name: 'Björkhagen', types: ['LSS'] },
+  { name: 'Solbacken', types: ['Skola', 'HVB'] },
+  { name: 'Ängslyckan', types: ['HVB', 'LSS'] },
+];
 const initialAdmins = [
   { id: 1, name: 'Tobias Glad', email: 'tobias.glad@mikaelgarden.se', role: 'Admin', password: 'Herzen222' },
 ];
@@ -201,12 +206,25 @@ function formatAudit(actor, dateIso) {
   return date ? `${actorName} · ${date}` : actorName;
 }
 
-function normalizeGroups(groups) {
-  return Array.from(new Set((Array.isArray(groups) ? groups : []).map(group => (typeof group === 'string' ? group : group?.name || group?.unit || '')).filter(Boolean)));
+function normalizeGroupTypes(groupTypes) {
+  const values = (Array.isArray(groupTypes) ? groupTypes : []).flatMap(groupType => {
+    if (typeof groupType === 'string') return groupType.split(',').map(value => value.trim());
+    if (Array.isArray(groupType?.types)) return groupType.types;
+    return groupType?.type || groupType?.group || '';
+  });
+  return Array.from(new Set(values.filter(Boolean)));
 }
 
-function normalizeGroupTypes(groupTypes) {
-  return Array.from(new Set((Array.isArray(groupTypes) ? groupTypes : []).map(groupType => (typeof groupType === 'string' ? groupType : groupType?.type || groupType?.group || '')).filter(Boolean)));
+function normalizeGroups(groups) {
+  const byName = new Map();
+  (Array.isArray(groups) ? groups : []).forEach(group => {
+    const name = groupLabel(group);
+    if (!name) return;
+    const types = normalizeGroupTypes(typeof group === 'string' ? [] : (group.types || group.type || group.groupTypes || group.groupType || []));
+    const current = byName.get(name) || { name, types: [] };
+    byName.set(name, { name, types: normalizeGroupTypes([...current.types, ...types]) });
+  });
+  return Array.from(byName.values());
 }
 
 function loadState() {
@@ -255,8 +273,18 @@ function groupLabel(group) {
   return typeof group === 'string' ? group : group?.name || group?.unit || '';
 }
 
+function groupTypesFor(group) {
+  return normalizeGroupTypes(typeof group === 'string' ? [] : (group?.types || group?.type || group?.groupTypes || group?.groupType || []));
+}
+
 function groupType(group) {
-  return typeof group === 'string' ? '' : group?.type || group?.groupType || '';
+  return groupTypesFor(group).join(', ');
+}
+
+function groupCategoriesFor(groups, unit, fallback = groupCategoryOptions) {
+  const match = groups.find(group => groupLabel(group) === unit);
+  const categories = match ? groupTypesFor(match) : [];
+  return categories.length ? categories : fallback;
 }
 
 function personUnit(person) {
@@ -313,21 +341,22 @@ function PageHeader({ title, subtitle, onAdd, addLabel = 'Ny medarbetare' }) {
 
 function EmployeeForm({ groups, groupTypes, actor, onSave, onClose }) {
   // Direkt tillagd medarbetare skapas direkt i personregistret.
+  const unitOptions = groups.length ? groups : [''];
+  const [selectedUnit, setSelectedUnit] = useState(groupLabel(unitOptions[0]));
+  const groupOptions = groupCategoriesFor(groups, selectedUnit, groupTypes.length ? groupTypes : groupCategoryOptions);
+
   const submit = e => {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(e.currentTarget));
-    onSave(createEmployeeFromForm(data, actor));
+    onSave(createEmployeeFromForm({ ...data, unit: selectedUnit, group: groupOptions.includes(data.group) ? data.group : groupOptions[0] || '' }, actor));
   };
-
-  const unitOptions = groups.length ? groups : [''];
-  const groupOptions = groupTypes.length ? groupTypes : [''];
 
   return <form className="form" onSubmit={submit}>
     <label>Fullständigt namn<input name="name" required placeholder="Förnamn Efternamn" /></label>
     <div className="form-grid"><label>Personnummer<input name="personalNumber" required placeholder="ÅÅÅÅMMDD-XXXX" /></label><label>Telefon<input name="phone" required placeholder="070-000 00 00" /></label></div>
     <label>Adress<input name="address" required placeholder="Gata, postnummer och ort" /></label>
     <div className="form-grid"><label>E-post<input type="email" name="email" required placeholder="namn@organisation.se" /></label><label>Utbildning<input name="education" placeholder="Ex. undersköterska" /></label></div>
-    <div className="form-grid"><label>Grupp<select name="unit" required>{unitOptions.map(unit => <option key={unit || 'tom-grupp'} value={unit}>{unit || 'Välj grupp'}</option>)}</select></label><label>Typ<select name="group" required>{groupOptions.map(group => <option key={group || 'tom-typ'} value={group}>{group || 'Välj typ'}</option>)}</select></label></div>
+    <div className="form-grid"><label>Grupp<select name="unit" value={selectedUnit} onChange={e => setSelectedUnit(e.target.value)} required>{unitOptions.map(unit => { const label = groupLabel(unit); return <option key={label || 'tom-grupp'} value={label}>{label || 'Välj grupp'}</option>; })}</select></label><label>Typ<select name="group" required>{groupOptions.map(group => <option key={group || 'tom-typ'} value={group}>{group || 'Välj typ'}</option>)}</select></label></div>
     <div className="form-grid"><label>Roll<input name="role" required placeholder="Ex. Stödassistent" /></label><label>Tjänstgöringsgrad<input name="rate" type="number" min="0" max="100" defaultValue="100" /></label></div>
     <div className="form-grid"><label>Anställningsstart<input name="employmentDate" type="date" /></label><label>Anställningstyp<input name="employmentType" placeholder="Ex. tillsvidare" /></label></div>
     <div className="form-grid"><label>Provanställning start<input name="probationStart" type="date" /></label><label>Provanställning slut<input name="probationEnd" type="date" /></label></div>
@@ -492,7 +521,7 @@ function EmployeeEditForm({ person, groups, groupTypes, onClose, onSave }) {
     email: person.email || '',
     phone: person.phone || '',
     unit: person.unit || groupLabel(groups[0]) || '',
-    group: person.group || groupTypes[0] || '',
+    group: person.group || groupCategoriesFor(groups, person.unit || groupLabel(groups[0]) || '', groupTypes)[0] || '',
     role: person.role || '',
     education: person.education || '',
     employmentType: person.employmentType || '',
@@ -527,6 +556,10 @@ function EmployeeEditForm({ person, groups, groupTypes, onClose, onSave }) {
   };
 
   const update = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
+  const updateUnit = value => setForm(prev => {
+    const options = groupCategoriesFor(groups, value, groupTypes);
+    return { ...prev, unit: value, group: options.includes(prev.group) ? prev.group : options[0] || '' };
+  });
 
   return <Modal title="Redigera medarbetare" onClose={onClose} wide>
     <form className="form" onSubmit={submit}>
@@ -540,8 +573,8 @@ function EmployeeEditForm({ person, groups, groupTypes, onClose, onSave }) {
         <label>Telefon<input value={form.phone} onChange={e => update('phone', e.target.value)} required /></label>
       </div>
       <div className="form-grid">
-        <label>Grupp<select value={form.unit} onChange={e => update('unit', e.target.value)}>{groups.map(unit => <option key={unit} value={unit}>{unit}</option>)}</select></label>
-        <label>Typ<select value={form.group} onChange={e => update('group', e.target.value)}>{groupTypes.map(option => <option key={option} value={option}>{option}</option>)}</select></label>
+        <label>Grupp<select value={form.unit} onChange={e => updateUnit(e.target.value)}>{groups.map(unit => { const label = groupLabel(unit); return <option key={label} value={label}>{label}</option>; })}</select></label>
+        <label>Typ<select value={form.group} onChange={e => update('group', e.target.value)}>{groupCategoriesFor(groups, form.unit, groupTypes).map(option => <option key={option} value={option}>{option}</option>)}</select></label>
       </div>
       <div className="form-grid">
         <label>Roll<input value={form.role} onChange={e => update('role', e.target.value)} required /></label>
@@ -572,99 +605,75 @@ function PersonDetail({ person, setPeople, groups, groupTypes, onClose }) {
   return <EmployeeDetail person={person} setPeople={setPeople} onClose={onClose} onEdit={() => setEditing(true)} />;
 }
 
-function Groups({ groups, groupTypes, setGroups, setGroupTypes, people, setPeople }) {
-  // Gruppvyn administrerar organisatoriska grupper och deras typer som två separata listor.
-  const [newGroupType, setNewGroupType] = useState('');
+function TypeCheckboxes({ selected, onChange }) {
+  const selectedSet = new Set(selected);
+  return <div className="type-checks">
+    {groupCategoryOptions.map(option => <label key={option}><input type="checkbox" checked={selectedSet.has(option)} onChange={event => {
+      const next = event.target.checked ? [...selectedSet, option] : [...selectedSet].filter(value => value !== option);
+      onChange(next);
+    }} />{option}</label>)}
+  </div>;
+}
+
+function Groups({ groups, setGroups, people, setPeople }) {
+  // Gruppvyn administrerar organisatoriska grupper och vilka kategorier varje grupp tillhör.
   const [newUnit, setNewUnit] = useState('');
-  const [editingGroupType, setEditingGroupType] = useState(null);
+  const [newTypes, setNewTypes] = useState(['LSS']);
   const [editingUnit, setEditingUnit] = useState(null);
-  const [draftGroupType, setDraftGroupType] = useState('');
   const [draftUnit, setDraftUnit] = useState('');
-
-  const updateGroupType = (prevValue, nextValue) => {
-    const trimmed = nextValue.trim();
-    if (!trimmed) return;
-    setGroupTypes(prev => prev.map(value => value === prevValue ? trimmed : value));
-    setPeople(prev => prev.map(person => person.group === prevValue ? { ...person, group: trimmed } : person));
-  };
-
-  const updateUnit = (prevValue, nextValue) => {
-    const trimmed = nextValue.trim();
-    if (!trimmed) return;
-    setGroups(prev => prev.map(value => value === prevValue ? trimmed : value));
-    setPeople(prev => prev.map(person => person.unit === prevValue ? { ...person, unit: trimmed } : person));
-  };
-
-  const removeGroupType = value => {
-    setGroupTypes(prev => prev.filter(item => item !== value));
-    setPeople(prev => prev.map(person => person.group === value ? { ...person, group: '' } : person));
-  };
-
-  const removeUnit = value => {
-    setGroups(prev => prev.filter(item => item !== value));
-    setPeople(prev => prev.map(person => person.unit === value ? { ...person, unit: '' } : person));
-  };
-
-  const addGroupType = event => {
-    event.preventDefault();
-    const value = newGroupType.trim();
-    if (!value || groupTypes.includes(value)) return;
-    setGroupTypes(prev => [...prev, value]);
-    setNewGroupType('');
-  };
+  const [draftTypes, setDraftTypes] = useState([]);
 
   const addUnit = event => {
     event.preventDefault();
-    const value = newUnit.trim();
-    if (!value || groups.includes(value)) return;
-    setGroups(prev => [...prev, value]);
+    const name = newUnit.trim();
+    if (!name || groups.some(group => groupLabel(group) === name)) return;
+    setGroups(prev => [...prev, { name, types: newTypes.length ? newTypes : ['Verksamhet'] }]);
     setNewUnit('');
+    setNewTypes(['LSS']);
+  };
+
+  const updateUnit = (prevValue, nextValue, nextTypes) => {
+    const name = nextValue.trim();
+    if (!name) return;
+    const types = nextTypes.length ? nextTypes : ['Verksamhet'];
+    setGroups(prev => prev.map(group => groupLabel(group) === prevValue ? { name, types } : group));
+    setPeople(prev => prev.map(person => {
+      if (person.unit !== prevValue) return person;
+      return { ...person, unit: name, group: types.includes(person.group) ? person.group : types[0] };
+    }));
+  };
+
+  const removeUnit = value => {
+    setGroups(prev => prev.filter(group => groupLabel(group) !== value));
+    setPeople(prev => prev.map(person => person.unit === value ? { ...person, unit: '', group: '' } : person));
   };
 
   return <>
-    <PageHeader title="Grupper" subtitle="Administrera grupper och typer som två separata listor" />
-    <div className="group-admin-grid">
-      <section className="panel group-text-panel">
-        <div className="panel-head"><div><h2>Typer</h2><p>HVB, LSS, Skola och andra indelningar.</p></div><span className="tag">{groupTypes.length} typer</span></div>
-        <form className="group-create-fields group-inline-form" onSubmit={addGroupType}>
-          <label><span>Ny typ</span><input value={newGroupType} onChange={e => setNewGroupType(e.target.value)} placeholder="Ex. LSS" /></label>
-          <button className="primary" type="submit"><Plus size={17}/>Lägg till typ</button>
-        </form>
-        <div className="group-text-list">
-          {groupTypes.map(value => <div className="group-text-row" key={value}>
-            <div className="group-row-icon"><Building2 size={20}/></div>
-            <div className="group-text-main"><strong>{value}</strong><span>{people.filter(person => person.group === value).length} personer</span></div>
-            <button type="button" className="secondary small" onClick={() => { setEditingGroupType(value); setDraftGroupType(value); }} aria-label={`Redigera ${value}`}><Pencil size={15}/>Redigera</button>
-            <button type="button" className="secondary small danger" onClick={() => removeGroupType(value)} aria-label={`Ta bort ${value}`}><Trash2 size={15}/>Ta bort</button>
-            {editingGroupType === value ? <div className="group-text-edit">
-              <label><span>Typ</span><input className="group-name" value={draftGroupType} onChange={e => setDraftGroupType(e.target.value)} placeholder="Nytt namn" /></label>
-              <div className="group-edit-actions"><button type="button" className="secondary small" onClick={() => setEditingGroupType(null)}>Avbryt</button><button type="button" className="primary small" onClick={() => { updateGroupType(value, draftGroupType); setEditingGroupType(null); }}>Spara ändringar</button></div>
-            </div> : null}
-          </div>)}
-        </div>
-      </section>
-      <section className="panel group-text-panel">
-        <div className="panel-head"><div><h2>Grupper</h2><p>Björkhagen, Solbacken, Ängslyckan och andra grupper.</p></div><span className="tag">{groups.length} grupper</span></div>
-        <form className="group-create-fields group-inline-form" onSubmit={addUnit}>
-          <label><span>Ny grupp</span><input value={newUnit} onChange={e => setNewUnit(e.target.value)} placeholder="Ex. Björkhagen" /></label>
-          <button className="primary" type="submit"><Plus size={17}/>Lägg till grupp</button>
-        </form>
-        <div className="group-text-list">
-          {groups.map(value => <div className="group-text-row" key={value}>
-            <div className="group-row-icon"><Building2 size={20}/></div>
-            <div className="group-text-main"><strong>{value}</strong><span>{people.filter(person => person.unit === value).length} personer</span></div>
-            <button type="button" className="secondary small" onClick={() => { setEditingUnit(value); setDraftUnit(value); }} aria-label={`Redigera ${value}`}><Pencil size={15}/>Redigera</button>
-            <button type="button" className="secondary small danger" onClick={() => removeUnit(value)} aria-label={`Ta bort ${value}`}><Trash2 size={15}/>Ta bort</button>
-            {editingUnit === value ? <div className="group-text-edit">
-              <label><span>Grupp</span><input className="group-name" value={draftUnit} onChange={e => setDraftUnit(e.target.value)} placeholder="Nytt gruppnamn" /></label>
-              <div className="group-edit-actions"><button type="button" className="secondary small" onClick={() => setEditingUnit(null)}>Avbryt</button><button type="button" className="primary small" onClick={() => { updateUnit(value, draftUnit); setEditingUnit(null); }}>Spara ändringar</button></div>
-            </div> : null}
-          </div>)}
-        </div>
-      </section>
-    </div>
+    <PageHeader title="Grupper" subtitle="Administrera grupper och markera om de hör till LSS, HVB, Skola eller Verksamhet" />
+    <section className="panel group-text-panel">
+      <div className="panel-head"><div><h2>Grupper</h2><p>Varje grupp kan ha en eller flera kategorier.</p></div><span className="tag">{groups.length} grupper</span></div>
+      <form className="group-create-fields group-inline-form" onSubmit={addUnit}>
+        <label><span>Ny grupp</span><input value={newUnit} onChange={e => setNewUnit(e.target.value)} placeholder="Ex. Björkhagen" /></label>
+        <label><span>Kategorier</span><TypeCheckboxes selected={newTypes} onChange={setNewTypes} /></label>
+        <button className="primary" type="submit"><Plus size={17}/>Lägg till grupp</button>
+      </form>
+      <div className="group-text-list">
+        {groups.map(group => { const name = groupLabel(group); const types = groupTypesFor(group); return <div className="group-text-row" key={name}>
+          <div className="group-row-icon"><Building2 size={20}/></div>
+          <div className="group-text-main"><strong>{name}</strong><span>{types.length ? types.join(', ') : 'Ingen kategori'} · {people.filter(person => person.unit === name).length} personer</span></div>
+          <button type="button" className="secondary small" onClick={() => { setEditingUnit(name); setDraftUnit(name); setDraftTypes(types.length ? types : ['Verksamhet']); }} aria-label={`Redigera ${name}`}><Pencil size={15}/>Redigera</button>
+          <button type="button" className="secondary small danger" onClick={() => removeUnit(name)} aria-label={`Ta bort ${name}`}><Trash2 size={15}/>Ta bort</button>
+          {editingUnit === name ? <div className="group-text-edit">
+            <label><span>Grupp</span><input className="group-name" value={draftUnit} onChange={e => setDraftUnit(e.target.value)} placeholder="Nytt gruppnamn" /></label>
+            <label><span>Kategorier</span><TypeCheckboxes selected={draftTypes} onChange={setDraftTypes} /></label>
+            <div className="group-edit-actions"><button type="button" className="secondary small" onClick={() => setEditingUnit(null)}>Avbryt</button><button type="button" className="primary small" onClick={() => { updateUnit(name, draftUnit, draftTypes); setEditingUnit(null); }}>Spara ändringar</button></div>
+          </div> : null}
+        </div>; })}
+      </div>
+    </section>
   </>;
 }
+
 function LoginScreen({ users, setUsers, onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -816,7 +825,7 @@ function Admin({ groups, people, admins, setAdmins, currentUser, onCurrentUserUp
     </section>
     <div className="admin-list">
       <section><ShieldCheck/><div><h3>Behörigheter</h3><p>HR-ansvariga kan se allt. Användare kan också ändra struktur och inställningar.</p></div><span className="tag">Aktivt</span></section>
-      <section><Shapes/><div><h3>Organisation</h3><p>{groups.length} grupper och {groupTypes.length} typer.</p></div><span className="tag">Synkroniserat</span></section>
+      <section><Shapes/><div><h3>Organisation</h3><p>{groups.length} grupper.</p></div><span className="tag">Synkroniserat</span></section>
     </div>
   </>;
 }
@@ -849,7 +858,7 @@ function App() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const peopleGroupOptions = ["Alla", ...Array.from(new Set([...groups, ...people.map(person => person.unit).filter(Boolean)]))];
+  const peopleGroupOptions = ["Alla", ...Array.from(new Set([...groups.map(groupLabel), ...people.map(person => person.unit).filter(Boolean)]))];
   const hasPeopleFilters = Boolean(query.trim() || groupFilter !== "Alla" || dateFrom || dateTo);
   const navigateTo = label => {
     setActive(label);
@@ -875,7 +884,7 @@ function App() {
         const unitToGroupType = new Map(legacyGroups.map(group => [typeof group === 'string' ? group : group?.name || group?.unit || '', typeof group === 'string' ? '' : group?.type || group?.groupType || '']).filter(([unit]) => Boolean(unit)));
         setPeople(normalizePeople(Array.isArray(source.people) ? source.people : [], unitToGroupType));
         setGroups(normalizeGroups(Array.isArray(source.groups) && source.groups.length ? source.groups : initialGroups));
-        setGroupTypes(normalizeGroupTypes(Array.isArray(source.groupTypes) && source.groupTypes.length ? source.groupTypes : (legacyGroups.length ? legacyGroups.map(group => typeof group === 'string' ? group : group?.type || group?.groupType || '') : initialGroupTypes)));
+        setGroupTypes(groupCategoryOptions);
         setAdmins(nextAdmins);
         setColorTheme(colorThemes.some(theme => theme.id === source.colorTheme) ? source.colorTheme : defaultColorTheme);
         const sessionEmail = localStorage.getItem(`${storageKey}-session`);
@@ -924,7 +933,7 @@ function App() {
     if (hasPeopleFilters) return <PeopleSearchResults people={people} groups={groups} query={query} groupFilter={groupFilter} dateFrom={dateFrom} dateTo={dateTo} setSelectedId={setSelectedId} />;
     if (active === 'Översikt') return <Overview people={people} groups={groups} />;
     if (active === 'Medarbetare') return <Employees people={people} groups={groups} query={query} setSelectedId={setSelectedId} onAdd={() => setNewEmployeeOpen(true)} onOpenFilters={() => setFiltersOpen(true)} />;
-    if (active === 'Grupper') return <Groups groups={groups} groupTypes={groupTypes} setGroups={setGroups} setGroupTypes={setGroupTypes} people={people} setPeople={setPeople} />;
+    if (active === 'Grupper') return <Groups groups={groups} setGroups={setGroups} people={people} setPeople={setPeople} />;
     return <Admin groups={groups} people={people} admins={admins} setAdmins={setAdmins} currentUser={currentUser} onCurrentUserUpdate={updateCurrentUser} colorTheme={colorTheme} setColorTheme={setColorTheme} />;
   }, [active, people, groups, groupTypes, query, groupFilter, dateFrom, dateTo, hasPeopleFilters, admins, currentUser, colorTheme]);
 

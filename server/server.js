@@ -10,9 +10,14 @@ const dbPath = join(dataDir, 'folk.db');
 const distDir = join(rootDir, 'dist');
 const port = Number(process.env.PORT || 8020);
 
-const initialGroupTypes = ['LSS', 'HVB', 'Skola'];
+const groupCategoryOptions = ['LSS', 'HVB', 'Skola', 'Verksamhet'];
+const initialGroupTypes = groupCategoryOptions;
 const legacyDefaultGroupTypes = ['Verksamhetsstöd', 'Assistent', 'Administration', 'Vikarier'];
-const initialGroups = ['Björkhagen', 'Solbacken', 'Ängslyckan'];
+const initialGroups = [
+  { name: 'Björkhagen', types: ['LSS'] },
+  { name: 'Solbacken', types: ['Skola', 'HVB'] },
+  { name: 'Ängslyckan', types: ['HVB', 'LSS'] },
+];
 const initialAdmins = [
   { id: 1, name: 'Tobias Glad', email: 'tobias.glad@mikaelgarden.se', role: 'Admin', password: 'Herzen222' },
 ];
@@ -100,8 +105,26 @@ db.exec(`
   );
 `);
 
-const normalizeGroups = groups => Array.from(new Set((Array.isArray(groups) ? groups : []).map(group => (typeof group === 'string' ? group : group?.name || group?.unit || '')).filter(Boolean)));
-const normalizeGroupTypes = groupTypes => Array.from(new Set((Array.isArray(groupTypes) ? groupTypes : []).map(groupType => (typeof groupType === 'string' ? groupType : groupType?.type || groupType?.group || '')).filter(Boolean)));
+const groupLabel = group => (typeof group === 'string' ? group : group?.name || group?.unit || '');
+const normalizeGroupTypes = groupTypes => {
+  const values = (Array.isArray(groupTypes) ? groupTypes : [groupTypes]).flatMap(groupType => {
+    if (typeof groupType === 'string') return groupType.split(',').map(value => value.trim());
+    if (Array.isArray(groupType?.types)) return groupType.types;
+    return groupType?.type || groupType?.group || '';
+  });
+  return Array.from(new Set(values.filter(Boolean)));
+};
+const normalizeGroups = groups => {
+  const byName = new Map();
+  (Array.isArray(groups) ? groups : []).forEach(group => {
+    const name = groupLabel(group);
+    if (!name) return;
+    const types = normalizeGroupTypes(typeof group === 'string' ? [] : (group.types || group.type || group.groupTypes || group.groupType || []));
+    const current = byName.get(name) || { name, types: [] };
+    byName.set(name, { name, types: normalizeGroupTypes([...current.types, ...types]) });
+  });
+  return Array.from(byName.values());
+};
 const initialsFor = name => name.split(' ').map(part => part[0]).slice(0, 2).join('').toUpperCase() || 'P';
 const splitName = person => {
   const fullName = String(person.name || '').trim();
@@ -128,20 +151,20 @@ function normalizeState(state) {
   return ensureSeedUsers({
     people: Array.isArray(state.people) ? state.people : [],
     groups: normalizeGroups(Array.isArray(state.groups) && state.groups.length ? state.groups : initialGroups),
-    groupTypes: normalizeGroupTypes(Array.isArray(state.groupTypes) && state.groupTypes.length ? state.groupTypes : initialGroupTypes),
+    groupTypes: groupCategoryOptions,
     admins: Array.isArray(state.admins) ? state.admins : initialAdmins,
     colorTheme: ['folk', 'mikaelgarden'].includes(state.colorTheme) ? state.colorTheme : 'folk',
   });
 }
 
 function groupIdForName(name, type = '') {
-  const trimmed = String(name || '').trim();
+  const trimmed = groupLabel(name).trim();
   if (!trimmed) return null;
   db.prepare(`
     INSERT INTO groups (name, type, updated_at)
     VALUES (?, ?, ?)
     ON CONFLICT(name) DO UPDATE SET type = COALESCE(NULLIF(excluded.type, ''), groups.type), active = 1, updated_at = excluded.updated_at
-  `).run(trimmed, String(type || ''), new Date().toISOString());
+  `).run(trimmed, normalizeGroupTypes(type).join(','), new Date().toISOString());
   return db.prepare('SELECT id FROM groups WHERE name = ?').get(trimmed)?.id || null;
 }
 
@@ -208,7 +231,7 @@ function upsertPerson(person) {
 }
 
 function seedRelationalTables() {
-  for (const group of initialGroups) groupIdForName(group, '');
+  for (const group of initialGroups) groupIdForName(group, group.types || []);
   const count = db.prepare('SELECT COUNT(*) AS count FROM people').get().count;
   if (count === 0) {
     for (const person of initialPeopleSeed) upsertPerson(person);
@@ -253,7 +276,10 @@ function peopleFromDb() {
 }
 
 function groupsFromDb() {
-  return db.prepare('SELECT name FROM groups WHERE active = 1 ORDER BY name COLLATE NOCASE').all().map(row => row.name);
+  return db.prepare('SELECT name, type FROM groups WHERE active = 1 ORDER BY name COLLATE NOCASE').all().map(row => {
+    const types = normalizeGroupTypes(row.type);
+    return { name: row.name, types: types.length ? types : ['Verksamhet'] };
+  });
 }
 
 function metadataState() {
@@ -267,14 +293,13 @@ function readState() {
   const people = peopleFromDb();
   const groups = groupsFromDb();
   const usedGroupTypes = people.map(person => person.group).filter(Boolean);
-  const metadataGroupTypes = metadata.groupTypes.filter(groupType => !legacyDefaultGroupTypes.includes(groupType) || usedGroupTypes.includes(groupType));
-  const groupTypes = normalizeGroupTypes([...initialGroupTypes, ...metadataGroupTypes, ...usedGroupTypes]);
+  const groupTypes = normalizeGroupTypes([...groupCategoryOptions, ...groups.flatMap(group => group.types || []), ...usedGroupTypes]);
   return normalizeState({ ...metadata, people, groups, groupTypes });
 }
 
 function writeState(state) {
   const next = normalizeState(state);
-  for (const group of next.groups) groupIdForName(group, '');
+  for (const group of next.groups) groupIdForName(group, group.types || group.type || []);
   for (const person of next.people) upsertPerson(person);
   const saved = { ...next, people: peopleFromDb(), groups: groupsFromDb() };
   db.prepare(`
