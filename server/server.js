@@ -231,9 +231,9 @@ function upsertPerson(person) {
 }
 
 function seedRelationalTables() {
-  for (const group of initialGroups) groupIdForName(group, group.types || []);
   const count = db.prepare('SELECT COUNT(*) AS count FROM people').get().count;
   if (count === 0) {
+    for (const group of initialGroups) groupIdForName(group, group.types || []);
     for (const person of initialPeopleSeed) upsertPerson(person);
   }
 }
