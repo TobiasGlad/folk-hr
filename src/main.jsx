@@ -661,8 +661,8 @@ function EmployeeDetail({ person, setPeople, actor, onClose, onEdit }) {
         <div><label>Provanställning start</label><b>{person.probationStart ? new Date(person.probationStart).toLocaleDateString('sv-SE') : '-'}</b></div>
         <div><label>Provanställning slut</label><b>{person.probationEnd ? new Date(person.probationEnd).toLocaleDateString('sv-SE') : '-'}</b></div>
         <div><label>Skapad av</label><b>{formatAudit(person.createdBy, person.createdAt)}</b></div>
-        <div className="employment-counter"><label>Anställd i</label><b>{duration ? duration.days.toLocaleString('sv-SE') : '-'}</b><small>{duration ? `dagar sedan ${formatDate(duration.startValue)}` : 'Anställningsstart saknas'}</small></div>
         <div><label>Anställd av</label><b>{formatAudit(person.hiredBy, person.hiredAt)}</b></div>
+        <div className="employment-counter"><label>Anställd i</label><b>{duration ? duration.days.toLocaleString('sv-SE') : '-'}</b><small>{duration ? `dagar sedan ${formatDate(duration.startValue)}` : 'Anställningsstart saknas'}</small></div>
       </div>
     </> : null}
     {profileTab === 'documents' ? <DocumentShelf
