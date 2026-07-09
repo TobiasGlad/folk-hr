@@ -615,40 +615,44 @@ function NotesPanel({ person, setPeople, actor }) {
 
 function EmployeeDetail({ person, setPeople, actor, onClose, onEdit }) {
   // För en färdig medarbetare visas profilvyn med samma data som i redigeringen plus dokumentlista.
-  const [profileTab, setProfileTab] = useState('documents');
+  const [profileTab, setProfileTab] = useState('profile');
   return <Modal title="Medarbetarprofil" onClose={onClose} wide>
-    <div className="profile-head">
-      <Avatar person={person} large />
-      <div><h2>{person.name}</h2><p>{person.role || '-'} · {person.unit || '-'}</p></div>
-      <button className="secondary small" onClick={onEdit}><Pencil size={15}/>Redigera</button>
-    </div>
-    <div className="profile-grid">
-      <div><label>Personnummer</label><b>{person.personalNumber || '-'}</b></div>
-      <div><label>Telefon</label><b>{person.phone}</b></div>
-      <div><label>Adress</label><b>{person.address || '-'}</b></div>
-      <div><label>E-post</label><b>{person.email}</b></div>
-      <div><label>Roll</label><b>{person.role || '-'}</b></div>
-      <div><label>Grupp</label><b>{person.unit || '-'}</b></div>
-      <div><label>Typ</label><b>{person.group || '-'}</b></div>
-      <div><label>Utbildning</label><b>{person.education || '-'}</b></div>
-      <div><label>Anställningstyp</label><b>{person.employmentType || '-'}</b></div>
-      <div><label>Tjänstgöringsgrad</label><b>{person.rate} %</b></div>
-      <div><label>Anställningsstart</label><b>{person.employmentDate ? new Date(person.employmentDate).toLocaleDateString('sv-SE') : (person.start ? new Date(person.start).toLocaleDateString('sv-SE') : '-')}</b></div>
-      <div><label>Provanställning start</label><b>{person.probationStart ? new Date(person.probationStart).toLocaleDateString('sv-SE') : '-'}</b></div>
-      <div><label>Provanställning slut</label><b>{person.probationEnd ? new Date(person.probationEnd).toLocaleDateString('sv-SE') : '-'}</b></div>
-      <div><label>Skapad av</label><b>{formatAudit(person.createdBy, person.createdAt)}</b></div>
-      <div><label>Anställd av</label><b>{formatAudit(person.hiredBy, person.hiredAt)}</b></div>
-    </div>
-    <div className="profile-tabs" role="tablist" aria-label="Medarbetarprofil">
+    <div className="profile-tabs profile-tabs-top" role="tablist" aria-label="Medarbetarprofil">
+      <button type="button" className={profileTab === 'profile' ? 'active' : ''} onClick={() => setProfileTab('profile')}>Profil</button>
       <button type="button" className={profileTab === 'documents' ? 'active' : ''} onClick={() => setProfileTab('documents')}>Dokument</button>
       <button type="button" className={profileTab === 'notes' ? 'active' : ''} onClick={() => setProfileTab('notes')}>Anteckningar</button>
     </div>
+    {profileTab === 'profile' ? <>
+      <div className="profile-head">
+        <Avatar person={person} large />
+        <div><h2>{person.name}</h2><p>{person.role || '-'} · {person.unit || '-'}</p></div>
+        <button className="secondary small" onClick={onEdit}><Pencil size={15}/>Redigera</button>
+      </div>
+      <div className="profile-grid">
+        <div><label>Personnummer</label><b>{person.personalNumber || '-'}</b></div>
+        <div><label>Telefon</label><b>{person.phone}</b></div>
+        <div><label>Adress</label><b>{person.address || '-'}</b></div>
+        <div><label>E-post</label><b>{person.email}</b></div>
+        <div><label>Roll</label><b>{person.role || '-'}</b></div>
+        <div><label>Grupp</label><b>{person.unit || '-'}</b></div>
+        <div><label>Typ</label><b>{person.group || '-'}</b></div>
+        <div><label>Utbildning</label><b>{person.education || '-'}</b></div>
+        <div><label>Anställningstyp</label><b>{person.employmentType || '-'}</b></div>
+        <div><label>Tjänstgöringsgrad</label><b>{person.rate} %</b></div>
+        <div><label>Anställningsstart</label><b>{person.employmentDate ? new Date(person.employmentDate).toLocaleDateString('sv-SE') : (person.start ? new Date(person.start).toLocaleDateString('sv-SE') : '-')}</b></div>
+        <div><label>Provanställning start</label><b>{person.probationStart ? new Date(person.probationStart).toLocaleDateString('sv-SE') : '-'}</b></div>
+        <div><label>Provanställning slut</label><b>{person.probationEnd ? new Date(person.probationEnd).toLocaleDateString('sv-SE') : '-'}</b></div>
+        <div><label>Skapad av</label><b>{formatAudit(person.createdBy, person.createdAt)}</b></div>
+        <div><label>Anställd av</label><b>{formatAudit(person.hiredBy, person.hiredAt)}</b></div>
+      </div>
+    </> : null}
     {profileTab === 'documents' ? <DocumentShelf
       person={person}
       setPeople={setPeople}
       title="Dokument"
       subtitle="CV, anställningsavtal, registerutdrag, intyg och andra filer samlas här."
-    /> : <NotesPanel person={person} setPeople={setPeople} actor={actor} />}
+    /> : null}
+    {profileTab === 'notes' ? <NotesPanel person={person} setPeople={setPeople} actor={actor} /> : null}
   </Modal>;
 }
 
