@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   LayoutDashboard, Users, Shapes,
-  Settings, Search, Bell, UserPlus, SlidersHorizontal, ChevronRight,
+  Settings, Search, UserPlus, SlidersHorizontal, ChevronRight,
   Plus, X, Trash2, Upload, Download,
   Building2, ShieldCheck, Pencil, Menu, LogOut, FileText
 } from 'lucide-react';
@@ -1087,6 +1087,7 @@ function App() {
 
   return <div className="app-shell">
     <aside className={`sidebar ${menu ? 'open' : ''}`}>
+      <div className="brand"><strong>Folk<span>.</span></strong><small>HR-system</small></div>
       <nav>{[
         ['Översikt', LayoutDashboard],
         ['Medarbetare', Users],
@@ -1100,7 +1101,6 @@ function App() {
         <button className="mobile-menu" aria-label="Öppna meny" onClick={() => setMenu(!menu)}><Menu/></button>
         <div className="search"><Search size={18}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Sök namn, roll, e-post, telefon, grupp eller typ"/></div>
         <button className={hasPeopleFilters ? "secondary topbar-filter active" : "secondary topbar-filter"} aria-expanded={filtersOpen} onClick={() => setFiltersOpen(!filtersOpen)}><SlidersHorizontal size={17}/><span>Filter</span></button>
-        <button className="icon-btn" aria-label="Notiser"><Bell size={20}/></button>
         <button className="user"><span>{userInitials(currentUser.name)}</span><b>{currentUser.name}</b></button>
         <button className="icon-btn" aria-label="Logga ut" onClick={logout}><LogOut size={19}/></button>
       </header>
