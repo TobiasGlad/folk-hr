@@ -690,7 +690,7 @@ function TypeCheckboxes({ selected, onChange }) {
 function Groups({ groups, setGroups, people, setPeople }) {
   // Gruppvyn administrerar organisatoriska grupper och vilka kategorier varje grupp tillhör.
   const [newUnit, setNewUnit] = useState('');
-  const [newTypes, setNewTypes] = useState(['LSS']);
+  const [newTypes, setNewTypes] = useState([]);
   const [editingUnit, setEditingUnit] = useState(null);
   const [draftUnit, setDraftUnit] = useState('');
   const [draftTypes, setDraftTypes] = useState([]);
@@ -701,7 +701,7 @@ function Groups({ groups, setGroups, people, setPeople }) {
     if (!name || groups.some(group => groupLabel(group) === name)) return;
     setGroups(prev => [...prev, { name, types: newTypes.length ? newTypes : ['Verksamhet'] }]);
     setNewUnit('');
-    setNewTypes(['LSS']);
+    setNewTypes([]);
   };
 
   const updateUnit = (prevValue, nextValue, nextTypes) => {
