@@ -152,6 +152,7 @@ function createEmployeeFromForm(data, actor = null) {
     createdBy: actor,
     hiredAt: new Date().toISOString(),
     hiredBy: actor,
+    documents: Array.isArray(data.documents) ? data.documents : [],
   });
 }
 
@@ -328,7 +329,7 @@ function Modal({ title, children, onClose, wide = false }) {
   // Gemensam modalram för formulär och personprofiler.
   return <div className="modal-backdrop" onMouseDown={onClose}>
     <section className={`modal ${wide ? 'wide' : ''}`} onMouseDown={e => e.stopPropagation()} role="dialog" aria-modal="true">
-      <header><h2>{title}</h2><button className="icon-btn" onClick={onClose} aria-label="Stäng"><X size={20}/></button></header>
+      <header><h2>{title}</h2><button type="button" className="icon-btn" onClick={onClose} aria-label="Stäng"><X size={20}/></button></header>
       {children}
     </section>
   </div>;
@@ -343,13 +344,34 @@ function EmployeeForm({ groups, groupTypes, actor, onSave, onClose }) {
   // Direkt tillagd medarbetare skapas direkt i personregistret.
   const unitOptions = groups.length ? groups : [''];
   const [selectedUnit, setSelectedUnit] = useState(groupLabel(unitOptions[0]));
+  const [documents, setDocuments] = useState([]);
+  const [documentKind, setDocumentKind] = useState('');
+  const [documentLabel, setDocumentLabel] = useState('');
+  const [previewDocument, setPreviewDocument] = useState(null);
   const groupOptions = groupCategoriesFor(groups, selectedUnit, groupTypes.length ? groupTypes : groupCategoryOptions);
 
   const submit = e => {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(e.currentTarget));
-    onSave(createEmployeeFromForm({ ...data, unit: selectedUnit, group: groupOptions.includes(data.group) ? data.group : groupOptions[0] || '' }, actor));
+    onSave(createEmployeeFromForm({ ...data, unit: selectedUnit, group: groupOptions.includes(data.group) ? data.group : groupOptions[0] || '', documents }, actor));
   };
+
+  const handleDocumentUpload = async event => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const fileRecord = await readFileAsDataUrl(file);
+    const document = createDocumentEntry(fileRecord, {
+      kind: documentKind.trim() || 'Dokument',
+      label: documentLabel.trim(),
+      source: 'Medarbetare',
+    });
+    setDocuments(prev => [...prev, document]);
+    setDocumentKind('');
+    setDocumentLabel('');
+    event.target.value = '';
+  };
+
+  const removeDocument = id => setDocuments(prev => prev.filter(document => document.id !== id));
 
   return <form className="form" onSubmit={submit}>
     <label>Fullständigt namn<input name="name" required placeholder="Förnamn Efternamn" /></label>
@@ -361,7 +383,22 @@ function EmployeeForm({ groups, groupTypes, actor, onSave, onClose }) {
     <div className="form-grid"><label>Anställningsstart<input name="employmentDate" type="date" /></label><label>Anställningstyp<input name="employmentType" placeholder="Ex. tillsvidare" /></label></div>
     <div className="form-grid"><label>Provanställning start<input name="probationStart" type="date" /></label><label>Provanställning slut<input name="probationEnd" type="date" /></label></div>
     <div className="form-grid"><label>Uppsägning inlämnad<input name="noticeDate" type="date" /></label><label>Sista anställningsdag<input name="terminationDate" type="date" /></label></div>
+    <section className="inline-document-upload">
+      <div className="panel-head"><div><h2>Dokument</h2><p>CV, anställningsavtal, intyg och andra filer.</p></div><span className="tag">{documents.length} filer</span></div>
+      <div className="document-upload-grid">
+        <label>Dokumenttyp<input value={documentKind} onChange={e => setDocumentKind(e.target.value)} placeholder="CV, anställningsavtal, intyg..." /></label>
+        <label>Benämning<input value={documentLabel} onChange={e => setDocumentLabel(e.target.value)} placeholder="Kort beskrivning eller version" /></label>
+      </div>
+      <label className="secondary file-button document-upload-button"><Upload size={16}/>Ladda upp dokument<input type="file" onChange={handleDocumentUpload} /></label>
+      <div className="document-list">
+        {documents.length ? documents.map(document => <div className="document-row" key={document.id}>
+          <div className="document-row-main"><strong>{document.name}</strong><span>{document.kind}{document.label ? ` · ${document.label}` : ''}</span><small>{document.uploadedAt ? new Date(document.uploadedAt).toLocaleDateString('sv-SE') : 'Idag'}</small></div>
+          <div className="document-row-actions"><button type="button" className="secondary small" onClick={() => setPreviewDocument(document)}><FileText size={15}/>Visa</button><a className="secondary small" href={document.dataUrl} download={makeDocumentDownloadName(document)}><Download size={15}/>Hämta</a><button type="button" className="secondary small danger" onClick={() => removeDocument(document.id)}><Trash2 size={15}/>Ta bort</button></div>
+        </div>) : <div className="empty-state">Inga dokument uppladdade ännu.</div>}
+      </div>
+    </section>
     <div className="form-actions"><button type="button" className="secondary" onClick={onClose}>Avbryt</button><button className="primary">Lägg till medarbetare</button></div>
+    <DocumentPreviewModal document={previewDocument} onClose={() => setPreviewDocument(null)} />
   </form>;
 }
 
@@ -439,21 +476,52 @@ function PeopleSearchResults({ people, groups, query, groupFilter, dateFrom, dat
   </>;
 }
 
+function documentMime(document) {
+  return document.mimeType || document.type || '';
+}
+
+function canInlinePreview(document) {
+  const mime = documentMime(document);
+  return mime.startsWith('image/') || mime === 'application/pdf' || mime.startsWith('text/') || mime.includes('word') || mime.includes('officedocument');
+}
+
+function DocumentPreviewModal({ document, onClose }) {
+  if (!document) return null;
+  const mime = documentMime(document);
+  const isImage = mime.startsWith('image/');
+  const isPdf = mime === 'application/pdf';
+  const isText = mime.startsWith('text/');
+  const isOffice = mime.includes('word') || mime.includes('officedocument');
+  return <Modal title="Förhandsvisa dokument" onClose={onClose} wide>
+    <div className="document-preview-head">
+      <div><strong>{document.name}</strong><span>{document.kind || 'Dokument'}{document.label ? ` · ${document.label}` : ''}</span></div>
+      <a className="secondary small" href={document.dataUrl} download={makeDocumentDownloadName(document)}><Download size={15}/>Hämta</a>
+    </div>
+    <div className="document-preview-frame">
+      {isImage ? <img src={document.dataUrl} alt={document.name} /> : null}
+      {isPdf || isText ? <iframe title={document.name} src={document.dataUrl} /> : null}
+      {isOffice ? <div className="document-preview-fallback"><FileText size={34}/><strong>Förhandsvisning beror på webbläsaren</strong><p>Word- och Office-filer kan inte alltid visas direkt i webbläsaren. Filen är sparad och kan hämtas med knappen ovan.</p></div> : null}
+      {!canInlinePreview(document) ? <div className="document-preview-fallback"><FileText size={34}/><strong>Ingen inbyggd förhandsvisning</strong><p>Den här filtypen kan sparas i Folk och hämtas, men webbläsaren kan inte visa den direkt.</p></div> : null}
+    </div>
+  </Modal>;
+}
+
 function DocumentShelf({ person, setPeople, title, subtitle, uploadLabel = 'Ladda upp fil' }) {
   const documents = person.documents || [];
-  const [kind, setKind] = useState(documentKinds[0]);
+  const [kind, setKind] = useState('');
   const [label, setLabel] = useState('');
+  const [previewDocument, setPreviewDocument] = useState(null);
 
   const handleUpload = async event => {
     const file = event.target.files?.[0];
     if (!file) return;
     const fileRecord = await readFileAsDataUrl(file);
     setPeople(prev => prev.map(current => current.id === person.id ? applyDocumentUpload(current, fileRecord, {
-      kind,
+      kind: kind.trim() || 'Dokument',
       label,
       source: 'Medarbetare',
     }) : current));
-    setKind(documentKinds[0]);
+    setKind('');
     setLabel('');
     event.target.value = '';
   };
@@ -467,14 +535,18 @@ function DocumentShelf({ person, setPeople, title, subtitle, uploadLabel = 'Ladd
           <span>{doc.kind}{doc.label ? ` · ${doc.label}` : ''}</span>
           <small>{doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString('sv-SE') : 'Okänt datum'}</small>
         </div>
-        <a className="secondary small" href={doc.dataUrl} download={makeDocumentDownloadName(doc)}><Download size={15}/>Hämta</a>
+        <div className="document-row-actions">
+          <button type="button" className="secondary small" onClick={() => setPreviewDocument(doc)}><FileText size={15}/>Visa</button>
+          <a className="secondary small" href={doc.dataUrl} download={makeDocumentDownloadName(doc)}><Download size={15}/>Hämta</a>
+        </div>
       </div>) : <div className="empty-state">Inga uppladdade dokument ännu.</div>}
     </div>
     <div className="document-upload-grid">
-      <label>Dokumenttyp<select value={kind} onChange={e => setKind(e.target.value)}>{documentKinds.map(option => <option key={option} value={option}>{option}</option>)}</select></label>
-      <label>Benämning<input value={label} onChange={e => setLabel(e.target.value)} placeholder="CV, registerutdrag, intyg..." /></label>
+      <label>Dokumenttyp<input value={kind} onChange={e => setKind(e.target.value)} placeholder="CV, anställningsavtal, intyg..." /></label>
+      <label>Benämning<input value={label} onChange={e => setLabel(e.target.value)} placeholder="Kort beskrivning eller version" /></label>
     </div>
     <label className="secondary file-button document-upload-button"><Upload size={16}/>{uploadLabel}<input type="file" onChange={handleUpload} /></label>
+    <DocumentPreviewModal document={previewDocument} onClose={() => setPreviewDocument(null)} />
   </section>;
 }
 
