@@ -420,24 +420,30 @@ function EmployeeForm({ groups, groupTypes, actor, onSave, onClose }) {
   </form>;
 }
 
-function Overview({ people, groups }) {
+function Overview({ people, groups, mode, onNavigate, onShowProbation }) {
   // Översikten visar en snabb bild av personregistret.
   const active = people.filter(person => person.status === 'Anställd');
-  const probation = active.filter(person => person.employmentType === 'Provanställning' || person.probationEnd).length;
+  const probationPeople = active
+    .filter(person => person.employmentType === 'Provanställning' || person.probationEnd)
+    .sort((a, b) => String(a.probationEnd || '9999-12-31').localeCompare(String(b.probationEnd || '9999-12-31')));
   const groupCount = groups.length || new Set(active.map(person => person.unit).filter(Boolean)).size;
 
   return <>
     <PageHeader title="Översikt" />
     <div className="metrics">
-      <div><Users/><span><b>{active.length}</b>Aktiva medarbetare</span></div>
-      <div><Shapes/><span><b>{groupCount}</b>Grupper</span></div>
-      <div className="urgent"><ShieldCheck/><span><b>{probation}</b>Med provanställning</span></div>
+      <button type="button" className="metric-card" onClick={() => onNavigate('Medarbetare')}><Users/><span><b>{active.length}</b>Aktiva medarbetare</span></button>
+      <button type="button" className="metric-card" onClick={() => onNavigate('Grupper')}><Shapes/><span><b>{groupCount}</b>Grupper</span></button>
+      <button type="button" className="metric-card urgent" onClick={onShowProbation}><ShieldCheck/><span><b>{probationPeople.length}</b>Med provanställning</span></button>
     </div>
-    <section className="panel list-panel">
+    {mode === 'probation' ? <section className="panel list-panel">
+      <div className="panel-head"><div><h2>Provanställningar</h2><p>Medarbetare som går provanställning och när den upphör.</p></div></div>
+      <div className="employee-head probation-head"><span>Medarbetare</span><span>Grupp</span><span>Typ</span><span>Roll</span><span>Start</span><span>Slutar</span></div>
+      {probationPeople.length ? probationPeople.map(person => <div className="employee-row probation-row" key={person.id}><span className="person-cell"><Avatar person={person}/><span><b>{person.name}</b><small>{person.role}</small></span></span><span>{person.unit || '-'}</span><span>{person.group || '-'}</span><span>{person.role || '-'}</span><span>{person.probationStart ? formatDate(person.probationStart) : '-'}</span><span>{person.probationEnd ? formatDate(person.probationEnd) : '-'}</span></div>) : <div className="empty-state">Inga aktiva provanställningar.</div>}
+    </section> : <section className="panel list-panel">
       <div className="panel-head"><div><h2>Senast i personregistret</h2><p>Snabbvy över de första aktiva profilerna.</p></div></div>
       <div className="employee-head overview-employee-head"><span>Medarbetare</span><span>Grupp</span><span>Typ</span><span>Utbildning</span><span>Tjänstgöringsgrad</span><span>Anställningsstart</span></div>
       {active.slice(0, 6).map(person => <div className="employee-row overview-employee-row" key={person.id}><span className="person-cell"><Avatar person={person}/><span><b>{person.name}</b><small>{person.role}</small></span></span><span>{person.unit || '-'}</span><span>{person.group || '-'}</span><span>{person.education || '-'}</span><span>{person.rate} %</span><span>{person.employmentDate ? formatDate(person.employmentDate) : '-'}</span></div>)}
-    </section>
+    </section>}
   </>;
 }
 
@@ -1002,10 +1008,12 @@ function App() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [overviewMode, setOverviewMode] = useState('default');
   const peopleGroupOptions = ["Alla", ...Array.from(new Set([...groups.map(groupLabel), ...people.map(person => person.unit).filter(Boolean)]))];
   const hasPeopleFilters = Boolean(query.trim() || groupFilter !== "Alla" || dateFrom || dateTo);
   const navigateTo = label => {
     setActive(label);
+    setOverviewMode('default');
     setMenu(false);
     setFiltersOpen(false);
     setQuery("");
@@ -1075,11 +1083,11 @@ function App() {
 
   const page = useMemo(() => {
     if (hasPeopleFilters) return <PeopleSearchResults people={people} groups={groups} query={query} groupFilter={groupFilter} dateFrom={dateFrom} dateTo={dateTo} setSelectedId={setSelectedId} />;
-    if (active === 'Översikt') return <Overview people={people} groups={groups} />;
+    if (active === 'Översikt') return <Overview people={people} groups={groups} mode={overviewMode} onNavigate={navigateTo} onShowProbation={() => setOverviewMode('probation')} />;
     if (active === 'Medarbetare') return <Employees people={people} groups={groups} query={query} setSelectedId={setSelectedId} onAdd={() => setNewEmployeeOpen(true)} onOpenFilters={() => setFiltersOpen(true)} />;
     if (active === 'Grupper') return <Groups groups={groups} setGroups={setGroups} people={people} setPeople={setPeople} />;
     return <Admin groups={groups} people={people} admins={admins} setAdmins={setAdmins} currentUser={currentUser} onCurrentUserUpdate={updateCurrentUser} colorTheme={colorTheme} setColorTheme={setColorTheme} />;
-  }, [active, people, groups, groupTypes, query, groupFilter, dateFrom, dateTo, hasPeopleFilters, admins, currentUser, colorTheme]);
+  }, [active, people, groups, groupTypes, query, groupFilter, dateFrom, dateTo, hasPeopleFilters, admins, currentUser, colorTheme, overviewMode]);
 
   if (backendLoading) {
     return <div className="login-shell"><section className="login-panel"><div className="login-brand"><strong>Folk<span>.</span></strong><small>Medarbetarkoll</small></div><p className="loading-state">Laddar data från backend...</p></section></div>;
