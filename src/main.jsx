@@ -435,8 +435,8 @@ function Overview({ people, groups }) {
     </div>
     <section className="panel list-panel">
       <div className="panel-head"><div><h2>Senast i personregistret</h2><p>Snabbvy över de första aktiva profilerna.</p></div></div>
-      <div className="employee-head"><span>Medarbetare</span><span>Grupp</span><span>Typ</span><span>Utbildning</span><span>Tjänstgöringsgrad</span><span>Anställningsstart</span><span/></div>
-      {active.slice(0, 6).map(person => <div className="employee-row" key={person.id}><span className="person-cell"><Avatar person={person}/><span><b>{person.name}</b><small>{person.role}</small></span></span><span>{person.unit || '-'}</span><span>{person.group || '-'}</span><span>{person.education || '-'}</span><span>{person.rate} %</span><span>{person.employmentDate ? formatDate(person.employmentDate) : '-'}</span><ChevronRight size={17}/></div>)}
+      <div className="employee-head overview-employee-head"><span>Medarbetare</span><span>Grupp</span><span>Typ</span><span>Utbildning</span><span>Tjänstgöringsgrad</span><span>Anställningsstart</span></div>
+      {active.slice(0, 6).map(person => <div className="employee-row overview-employee-row" key={person.id}><span className="person-cell"><Avatar person={person}/><span><b>{person.name}</b><small>{person.role}</small></span></span><span>{person.unit || '-'}</span><span>{person.group || '-'}</span><span>{person.education || '-'}</span><span>{person.rate} %</span><span>{person.employmentDate ? formatDate(person.employmentDate) : '-'}</span></div>)}
     </section>
   </>;
 }
