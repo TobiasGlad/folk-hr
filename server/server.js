@@ -10,7 +10,7 @@ const dbPath = join(dataDir, 'folk.db');
 const distDir = join(rootDir, 'dist');
 const port = Number(process.env.PORT || 8020);
 
-const groupCategoryOptions = ['LSS', 'HVB', 'Skola', 'Verksamhet'];
+const groupCategoryOptions = ['LSS', 'HVB', 'Skola', 'Verksamhet', 'Kontor'];
 const initialGroupTypes = groupCategoryOptions;
 const legacyDefaultGroupTypes = ['Verksamhetsstöd', 'Assistent', 'Administration', 'Vikarier'];
 const initialGroups = [

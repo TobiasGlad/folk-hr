@@ -9,7 +9,7 @@ import {
 import './styles.css';
 
 // Första datamängden är lokal och fungerar som seed tills appen kopplas mot backend.
-const groupCategoryOptions = ['LSS', 'HVB', 'Skola', 'Verksamhet'];
+const groupCategoryOptions = ['LSS', 'HVB', 'Skola', 'Verksamhet', 'Kontor'];
 const initialGroupTypes = groupCategoryOptions;
 const defaultColorTheme = 'folk';
 const colorThemes = [
@@ -721,7 +721,7 @@ function Groups({ groups, setGroups, people, setPeople }) {
   };
 
   return <>
-    <PageHeader title="Grupper" subtitle="Administrera grupper och markera om de hör till LSS, HVB, Skola eller Verksamhet" />
+    <PageHeader title="Grupper" subtitle="Administrera grupper och markera om de hör till LSS, HVB, Skola, Verksamhet eller Kontor" />
     <section className="panel group-text-panel">
       <div className="panel-head"><div><h2>Grupper</h2><p>Varje grupp kan ha en eller flera kategorier.</p></div><span className="tag">{groups.length} grupper</span></div>
       <form className="group-create-fields group-inline-form" onSubmit={addUnit}>
