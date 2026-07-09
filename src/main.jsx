@@ -114,6 +114,17 @@ function makeDocumentDownloadName(document) {
   return document.name || `dokument-${document.kind || 'annat'}`;
 }
 
+function employmentDuration(person) {
+  const startValue = person.employmentDate || person.start || person.employmentStart || '';
+  if (!startValue) return null;
+  const start = new Date(`${startValue}T00:00:00`);
+  if (Number.isNaN(start.getTime())) return null;
+  const today = new Date();
+  const current = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const days = Math.max(0, Math.floor((current - start) / 86400000));
+  return { startValue, days };
+}
+
 function normalizePerson(person, unitToGroupType = new Map()) {
   const unit = person.unit || person.groupUnit || person.group || '';
   const group = person.group || person.groupType || unitToGroupType.get(unit) || '';
@@ -622,6 +633,7 @@ function NotesPanel({ person, setPeople, actor }) {
 function EmployeeDetail({ person, setPeople, actor, onClose, onEdit }) {
   // För en färdig medarbetare visas profilvyn med samma data som i redigeringen plus dokumentlista.
   const [profileTab, setProfileTab] = useState('profile');
+  const duration = employmentDuration(person);
   return <Modal title="Medarbetarprofil" onClose={onClose} wide>
     <div className="profile-tabs profile-tabs-top" role="tablist" aria-label="Medarbetarprofil">
       <button type="button" className={profileTab === 'profile' ? 'active' : ''} onClick={() => setProfileTab('profile')}>Profil</button>
@@ -650,6 +662,11 @@ function EmployeeDetail({ person, setPeople, actor, onClose, onEdit }) {
         <div><label>Provanställning slut</label><b>{person.probationEnd ? new Date(person.probationEnd).toLocaleDateString('sv-SE') : '-'}</b></div>
         <div><label>Skapad av</label><b>{formatAudit(person.createdBy, person.createdAt)}</b></div>
         <div><label>Anställd av</label><b>{formatAudit(person.hiredBy, person.hiredAt)}</b></div>
+      </div>
+      <div className="employment-counter">
+        <span>Anställd i</span>
+        <strong>{duration ? duration.days.toLocaleString('sv-SE') : '-'}</strong>
+        <small>{duration ? `dagar sedan ${formatDate(duration.startValue)}` : 'Anställningsstart saknas'}</small>
       </div>
     </> : null}
     {profileTab === 'documents' ? <DocumentShelf
