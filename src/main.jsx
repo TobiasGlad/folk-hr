@@ -422,7 +422,7 @@ function EmployeeForm({ groups, groupTypes, actor, onSave, onClose }) {
       <div className="document-list">
         {documents.length ? documents.map(document => <div className="document-row" key={document.id}>
           <div className="document-row-main"><strong>{document.name}</strong><span>{document.kind}{document.label ? ` · ${document.label}` : ''}</span><small>{document.uploadedAt ? new Date(document.uploadedAt).toLocaleDateString('sv-SE') : 'Idag'}</small></div>
-          <div className="document-row-actions"><button type="button" className="secondary small" onClick={() => setPreviewDocument(document)}><FileText size={15}/>Visa</button><a className="secondary small" href={document.dataUrl} download={makeDocumentDownloadName(document)}><Download size={15}/>Hämta</a><button type="button" className="secondary small danger" onClick={() => removeDocument(document.id)}><Trash2 size={15}/>Ta bort</button></div>
+          <div className="document-row-actions"><button type="button" className="secondary small" onClick={() => setPreviewDocument(document)}><FileText size={15}/>Visa</button><a className="secondary small" href={document.dataUrl} download={makeDocumentDownloadName(document)}><Download size={15}/>Hämta</a><button type="button" className="secondary small danger danger-compact" onClick={() => removeDocument(document.id)}><Trash2 size={14}/>Ta bort</button></div>
         </div>) : <div className="empty-state">Inga dokument uppladdade ännu.</div>}
       </div>
     </section>
@@ -580,7 +580,7 @@ function DocumentShelf({ person, setPeople, title, subtitle, uploadLabel = 'Ladd
         <div className="document-row-actions">
           <button type="button" className="secondary small" onClick={() => setPreviewDocument(doc)}><FileText size={15}/>Visa</button>
           <a className="secondary small" href={doc.dataUrl} download={makeDocumentDownloadName(doc)}><Download size={15}/>Hämta</a>
-          <button type="button" className="secondary small danger" onClick={() => removeDocument(doc.id)}><Trash2 size={15}/>Ta bort</button>
+          <button type="button" className="secondary small danger danger-compact" onClick={() => removeDocument(doc.id)}><Trash2 size={14}/>Ta bort</button>
         </div>
       </div>) : <div className="empty-state">Inga uppladdade dokument ännu.</div>}
     </div>
@@ -624,7 +624,7 @@ function NotesPanel({ person, setPeople, actor }) {
       {notes.length ? notes.map(note => <article className="note-row" key={note.id}>
         <div className="note-meta"><strong>{formatActor(note.createdBy)}</strong><span>{note.createdAt ? new Date(note.createdAt).toLocaleString('sv-SE') : 'Okänt datum'}</span></div>
         <p>{note.text}</p>
-        <button type="button" className="secondary small danger" onClick={() => removeNote(note.id)}><Trash2 size={15}/>Ta bort</button>
+        <button type="button" className="secondary small danger danger-icon" aria-label="Ta bort anteckning" title="Ta bort anteckning" onClick={() => removeNote(note.id)}><Trash2 size={13}/></button>
       </article>) : <div className="empty-state">Inga anteckningar ännu.</div>}
     </div>
   </section>;
@@ -829,7 +829,7 @@ function Groups({ groups, setGroups, people, setPeople }) {
           <div className="group-row-icon"><Building2 size={20}/></div>
           <div className="group-text-main"><strong>{name}</strong><span>{types.length ? types.join(', ') : 'Ingen kategori'} · {people.filter(person => person.unit === name).length} personer</span></div>
           <button type="button" className="secondary small" onClick={() => { setEditingUnit(name); setDraftUnit(name); setDraftTypes(types.length ? types : ['Verksamhet']); }} aria-label={`Redigera ${name}`}><Pencil size={15}/>Redigera</button>
-          <button type="button" className="secondary small danger" onClick={() => removeUnit(name)} aria-label={`Ta bort ${name}`}><Trash2 size={15}/>Ta bort</button>
+          <button type="button" className="secondary small danger danger-compact" onClick={() => removeUnit(name)} aria-label={`Ta bort ${name}`}><Trash2 size={14}/>Ta bort</button>
           {editingUnit === name ? <div className="group-text-edit">
             <label><span>Grupp</span><input className="group-name" value={draftUnit} onChange={e => setDraftUnit(e.target.value)} placeholder="Nytt gruppnamn" /></label>
             <label><span>Kategorier</span><TypeCheckboxes selected={draftTypes} onChange={setDraftTypes} /></label>
@@ -976,7 +976,7 @@ function Admin({ groups, people, admins, setAdmins, currentUser, onCurrentUserUp
           const isLastAdmin = admin.role === 'Admin' && admins.filter(user => user.role === 'Admin').length <= 1;
           const canRemove = canManageUsers && !isCurrent && !isLastAdmin;
           const removeReason = isCurrent ? 'Du kan inte ta bort dig själv' : isLastAdmin ? 'Sista admin kan inte tas bort' : 'Endast admin kan ta bort användare';
-          return <div className="admin-user-row" key={admin.id}><div className="mini-avatar">{userInitials(admin.name)}</div><span><strong>{admin.name}</strong><small>{admin.email} · {admin.role}{admin.password ? '' : ' · väntar på lösenord'}</small></span><button className="secondary small danger" disabled={!canRemove} title={canRemove ? `Ta bort ${admin.name}` : removeReason} onClick={() => removeAdmin(admin.id)}><Trash2 size={15}/>Ta bort</button></div>;
+          return <div className="admin-user-row" key={admin.id}><div className="mini-avatar">{userInitials(admin.name)}</div><span><strong>{admin.name}</strong><small>{admin.email} · {admin.role}{admin.password ? '' : ' · väntar på lösenord'}</small></span><button className="secondary small danger danger-compact" disabled={!canRemove} title={canRemove ? `Ta bort ${admin.name}` : removeReason} onClick={() => removeAdmin(admin.id)}><Trash2 size={14}/>Ta bort</button></div>;
         })}
       </div>
     </section>
