@@ -420,7 +420,7 @@ function EmployeeForm({ groups, groupTypes, actor, onSave, onClose }) {
   </form>;
 }
 
-function Overview({ people, groups, mode, onNavigate, onShowProbation }) {
+function Overview({ people, groups, mode, onNavigate, onShowProbation, setSelectedId }) {
   // Översikten visar en snabb bild av personregistret.
   const active = people.filter(person => person.status === 'Anställd');
   const probationPeople = active
@@ -437,8 +437,8 @@ function Overview({ people, groups, mode, onNavigate, onShowProbation }) {
     </div>
     {mode === 'probation' ? <section className="panel list-panel">
       <div className="panel-head"><div><h2>Provanställningar</h2><p>Medarbetare som går provanställning och när den upphör.</p></div></div>
-      <div className="employee-head probation-head"><span>Medarbetare</span><span>Grupp</span><span>Typ</span><span>Roll</span><span>Start</span><span>Slutar</span></div>
-      {probationPeople.length ? probationPeople.map(person => <div className="employee-row probation-row" key={person.id}><span className="person-cell"><Avatar person={person}/><span><b>{person.name}</b><small>{person.role}</small></span></span><span>{person.unit || '-'}</span><span>{person.group || '-'}</span><span>{person.role || '-'}</span><span>{person.probationStart ? formatDate(person.probationStart) : '-'}</span><span>{person.probationEnd ? formatDate(person.probationEnd) : '-'}</span></div>) : <div className="empty-state">Inga aktiva provanställningar.</div>}
+      <div className="employee-head probation-head"><span>Medarbetare</span><span>Grupp</span><span>Typ</span><span>Roll</span><span>Start</span><span>Slutar</span><span/></div>
+      {probationPeople.length ? probationPeople.map(person => <button type="button" className="employee-row probation-row" key={person.id} onClick={() => setSelectedId(person.id)}><span className="person-cell"><Avatar person={person}/><span><b>{person.name}</b><small>{person.role}</small></span></span><span>{person.unit || '-'}</span><span>{person.group || '-'}</span><span>{person.role || '-'}</span><span>{person.probationStart ? formatDate(person.probationStart) : '-'}</span><span>{person.probationEnd ? formatDate(person.probationEnd) : '-'}</span><ChevronRight size={17}/></button>) : <div className="empty-state">Inga aktiva provanställningar.</div>}
     </section> : <section className="panel list-panel">
       <div className="panel-head"><div><h2>Senast i personregistret</h2><p>Snabbvy över de första aktiva profilerna.</p></div></div>
       <div className="employee-head overview-employee-head"><span>Medarbetare</span><span>Grupp</span><span>Typ</span><span>Utbildning</span><span>Tjänstgöringsgrad</span><span>Anställningsstart</span></div>
@@ -1083,7 +1083,7 @@ function App() {
 
   const page = useMemo(() => {
     if (hasPeopleFilters) return <PeopleSearchResults people={people} groups={groups} query={query} groupFilter={groupFilter} dateFrom={dateFrom} dateTo={dateTo} setSelectedId={setSelectedId} />;
-    if (active === 'Översikt') return <Overview people={people} groups={groups} mode={overviewMode} onNavigate={navigateTo} onShowProbation={() => setOverviewMode('probation')} />;
+    if (active === 'Översikt') return <Overview people={people} groups={groups} mode={overviewMode} onNavigate={navigateTo} onShowProbation={() => setOverviewMode('probation')} setSelectedId={setSelectedId} />;
     if (active === 'Medarbetare') return <Employees people={people} groups={groups} query={query} setSelectedId={setSelectedId} onAdd={() => setNewEmployeeOpen(true)} onOpenFilters={() => setFiltersOpen(true)} />;
     if (active === 'Grupper') return <Groups groups={groups} setGroups={setGroups} people={people} setPeople={setPeople} />;
     return <Admin groups={groups} people={people} admins={admins} setAdmins={setAdmins} currentUser={currentUser} onCurrentUserUpdate={updateCurrentUser} colorTheme={colorTheme} setColorTheme={setColorTheme} />;
