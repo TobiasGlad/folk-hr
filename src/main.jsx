@@ -192,12 +192,15 @@ function futureDateISO(days) {
 }
 
 function normalizeUser(user) {
+  const role = user.role || (user.isAdmin ? 'Admin' : 'Användare');
   return {
     id: user.id || Date.now(),
     name: user.name || '',
     email: (user.email || '').trim(),
-    role: user.role || (user.isAdmin ? 'Admin' : 'Användare'),
+    role,
     password: user.password || '',
+    mustChangePassword: Boolean(user.mustChangePassword || user.passwordChangeRequired),
+    groupAccess: Array.isArray(user.groupAccess) ? user.groupAccess : [],
     createdAt: user.createdAt || null,
     createdBy: user.createdBy || null,
   };
@@ -219,7 +222,34 @@ function ensureSeedUsers(users = []) {
 
 function publicUser(user) {
   if (!user) return null;
-  return { id: user.id, name: user.name, email: user.email, role: user.role };
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    mustChangePassword: Boolean(user.mustChangePassword),
+    groupAccess: Array.isArray(user.groupAccess) ? user.groupAccess : [],
+  };
+}
+
+function userCanSeeAll(user) {
+  return user?.role === 'Admin';
+}
+
+function allowedGroupNames(user) {
+  return new Set(Array.isArray(user?.groupAccess) ? user.groupAccess : []);
+}
+
+function filterPeopleForUser(people, user) {
+  if (userCanSeeAll(user)) return people;
+  const allowed = allowedGroupNames(user);
+  return people.filter(person => allowed.has(person.unit));
+}
+
+function filterGroupsForUser(groups, user) {
+  if (userCanSeeAll(user)) return groups;
+  const allowed = allowedGroupNames(user);
+  return groups.filter(group => allowed.has(groupLabel(group)));
 }
 
 function userInitials(name = '') {
@@ -778,7 +808,7 @@ function TypeCheckboxes({ selected, onChange }) {
   </div>;
 }
 
-function Groups({ groups, setGroups, people, setPeople }) {
+function Groups({ groups, setGroups, people, setPeople, canManage = true }) {
   // Gruppvyn administrerar organisatoriska grupper och vilka kategorier varje grupp tillhör.
   const [newUnit, setNewUnit] = useState('');
   const [newTypes, setNewTypes] = useState([]);
@@ -812,21 +842,21 @@ function Groups({ groups, setGroups, people, setPeople }) {
   };
 
   return <>
-    <PageHeader title="Grupper" subtitle="Administrera grupper och markera om de hör till LSS, HVB, Skola, Verksamhet eller Kontor" />
+    <PageHeader title="Grupper" subtitle={canManage ? "Administrera grupper och markera om de hör till LSS, HVB, Skola, Verksamhet eller Kontor" : "Grupper du har tillgång till"} />
     <section className="panel group-text-panel">
-      <div className="panel-head"><div><h2>Grupper</h2><p>Varje grupp kan ha en eller flera kategorier.</p></div><span className="tag">{groups.length} grupper</span></div>
-      <form className="group-create-fields group-inline-form" onSubmit={addUnit}>
+      <div className="panel-head"><div><h2>Grupper</h2><p>{canManage ? 'Varje grupp kan ha en eller flera kategorier.' : 'Grupper du har behörighet till.'}</p></div><span className="tag">{groups.length} grupper</span></div>
+      {canManage ? <form className="group-create-fields group-inline-form" onSubmit={addUnit}>
         <label><span>Ny grupp</span><input value={newUnit} onChange={e => setNewUnit(e.target.value)} placeholder="Ex. Björkhagen" /></label>
         <label><span>Kategorier</span><TypeCheckboxes selected={newTypes} onChange={setNewTypes} /></label>
         <button className="primary" type="submit"><Plus size={17}/>Lägg till grupp</button>
-      </form>
+      </form> : null}
       <div className="group-text-list">
         {groups.map(group => { const name = groupLabel(group); const types = groupTypesFor(group); return <div className="group-text-row" key={name}>
           <div className="group-row-icon"><Building2 size={20}/></div>
           <div className="group-text-main"><strong>{name}</strong><span>{types.length ? types.join(', ') : 'Ingen kategori'} · {people.filter(person => person.unit === name).length} personer</span></div>
-          <button type="button" className="secondary small" onClick={() => { setEditingUnit(name); setDraftUnit(name); setDraftTypes(types.length ? types : ['Verksamhet']); }} aria-label={`Redigera ${name}`}><Pencil size={15}/>Redigera</button>
-          <button type="button" className="secondary small danger danger-compact" onClick={() => removeUnit(name)} aria-label={`Ta bort ${name}`}><Trash2 size={14}/>Ta bort</button>
-          {editingUnit === name ? <div className="group-text-edit">
+          {canManage ? <button type="button" className="secondary small" onClick={() => { setEditingUnit(name); setDraftUnit(name); setDraftTypes(types.length ? types : ['Verksamhet']); }} aria-label={`Redigera ${name}`}><Pencil size={15}/>Redigera</button> : null}
+          {canManage ? <button type="button" className="secondary small danger danger-compact" onClick={() => removeUnit(name)} aria-label={`Ta bort ${name}`}><Trash2 size={14}/>Ta bort</button> : null}
+          {canManage && editingUnit === name ? <div className="group-text-edit">
             <label><span>Grupp</span><input className="group-name" value={draftUnit} onChange={e => setDraftUnit(e.target.value)} placeholder="Nytt gruppnamn" /></label>
             <label><span>Kategorier</span><TypeCheckboxes selected={draftTypes} onChange={setDraftTypes} /></label>
             <div className="group-edit-actions"><button type="button" className="secondary small" onClick={() => setEditingUnit(null)}>Avbryt</button><button type="button" className="primary small" onClick={() => { updateUnit(name, draftUnit, draftTypes); setEditingUnit(null); }}>Spara ändringar</button></div>
@@ -837,33 +867,17 @@ function Groups({ groups, setGroups, people, setPeople }) {
   </>;
 }
 
-function LoginScreen({ users, setUsers, onLogin }) {
+function LoginScreen({ users, onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [message, setMessage] = useState('');
   const matchedUser = users.find(user => user.email.toLowerCase() === email.trim().toLowerCase());
-  const needsPassword = matchedUser && !matchedUser.password;
 
   const submit = event => {
     event.preventDefault();
     setMessage('');
     if (!matchedUser) {
       setMessage('E-postadressen är inte registrerad. Kontakta admin.');
-      return;
-    }
-    if (needsPassword) {
-      if (password.length < 6) {
-        setMessage('Välj ett lösenord med minst 6 tecken.');
-        return;
-      }
-      if (password !== confirmPassword) {
-        setMessage('Lösenorden matchar inte.');
-        return;
-      }
-      const updated = { ...matchedUser, password };
-      setUsers(prev => prev.map(user => user.id === matchedUser.id ? updated : user));
-      onLogin(publicUser(updated));
       return;
     }
     if (matchedUser.password !== password) {
@@ -878,20 +892,57 @@ function LoginScreen({ users, setUsers, onLogin }) {
       <div className="login-brand"><strong>Folk<span>.</span></strong><small>Medarbetarkoll</small></div>
       <form className="form" onSubmit={submit}>
         <label>E-postadress<input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="namn@organisation.se" required /></label>
-        <label>Lösenord<input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder={needsPassword ? 'Välj lösenord' : 'Lösenord'} required /></label>
-        {needsPassword ? <label>Bekräfta lösenord<input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Upprepa lösenord" required /></label> : null}
-        {needsPassword ? <p className="login-hint">Första inloggningen: välj ett lösenord för ditt konto.</p> : null}
+        <label>Lösenord<input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Tillfälligt eller eget lösenord" required /></label>
+        {matchedUser?.mustChangePassword ? <p className="login-hint">Du loggar in med ett tillfälligt lösenord och måste byta lösenord direkt efter inloggning.</p> : null}
         {message ? <p className="login-error">{message}</p> : null}
-        <button className="primary">{needsPassword ? 'Skapa lösenord och logga in' : 'Logga in'}</button>
+        <button className="primary">Logga in</button>
       </form>
     </section>
   </div>;
 }
 
+function ForcePasswordChange({ currentUser, admins, setAdmins, onCurrentUserUpdate }) {
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [message, setMessage] = useState('');
+
+  const submit = event => {
+    event.preventDefault();
+    setMessage('');
+    if (newPassword.length < 6) {
+      setMessage('Det nya lösenordet måste vara minst 6 tecken.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setMessage('Lösenorden matchar inte.');
+      return;
+    }
+    const storedUser = admins.find(admin => admin.id === currentUser?.id);
+    if (!storedUser) return;
+    const updated = { ...storedUser, password: newPassword, mustChangePassword: false };
+    setAdmins(prev => prev.map(admin => admin.id === updated.id ? updated : admin));
+    onCurrentUserUpdate(publicUser(updated));
+  };
+
+  return <div className="login-shell">
+    <section className="login-panel">
+      <div className="login-brand"><strong>Folk<span>.</span></strong><small>Medarbetarkoll</small></div>
+      <form className="form" onSubmit={submit}>
+        <p className="login-hint">Du måste byta ditt tillfälliga lösenord innan du kan fortsätta.</p>
+        <label>Nytt lösenord<input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required /></label>
+        <label>Bekräfta nytt lösenord<input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required /></label>
+        {message ? <p className="login-error">{message}</p> : null}
+        <button className="primary">Spara nytt lösenord</button>
+      </form>
+    </section>
+  </div>;
+}
 function Admin({ groups, people, admins, setAdmins, currentUser, onCurrentUserUpdate, colorTheme, setColorTheme }) {
   // Administrationsvyn styr behöriga användare och grundregler för systemet.
   const [adminName, setAdminName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
+  const [temporaryPassword, setTemporaryPassword] = useState('');
+  const [selectedGroups, setSelectedGroups] = useState([]);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -901,13 +952,15 @@ function Admin({ groups, people, admins, setAdmins, currentUser, onCurrentUserUp
     event.preventDefault();
     const name = adminName.trim();
     const email = adminEmail.trim();
-    if (!name || !email) return;
+    if (!name || !email || temporaryPassword.length < 6) return;
     const exists = admins.some(admin => admin.email.toLowerCase() === email.toLowerCase());
     if (exists) return;
     if (currentUser?.role !== 'Admin') return;
-    setAdmins(prev => [...prev, { id: Date.now(), name, email, role: 'Användare', password: '', createdAt: new Date().toISOString(), createdBy: currentUser }]);
+    setAdmins(prev => [...prev, { id: Date.now(), name, email, role: 'Användare', password: temporaryPassword, mustChangePassword: true, groupAccess: selectedGroups, createdAt: new Date().toISOString(), createdBy: currentUser }]);
     setAdminName('');
     setAdminEmail('');
+    setTemporaryPassword('');
+    setSelectedGroups([]);
   };
 
   const removeAdmin = id => {
@@ -921,6 +974,17 @@ function Admin({ groups, people, admins, setAdmins, currentUser, onCurrentUserUp
     setAdmins(prev => prev.filter(admin => admin.id !== id));
   };
   const canManageUsers = currentUser?.role === 'Admin';
+  const groupOptions = groups.map(groupLabel).filter(Boolean);
+  const toggleSelectedGroup = groupName => setSelectedGroups(prev => prev.includes(groupName) ? prev.filter(name => name !== groupName) : [...prev, groupName]);
+  const updateUserGroups = (id, groupName, checked) => {
+    if (!canManageUsers) return;
+    setAdmins(prev => prev.map(admin => {
+      if (admin.id !== id) return admin;
+      const current = Array.isArray(admin.groupAccess) ? admin.groupAccess : [];
+      const groupAccess = checked ? Array.from(new Set([...current, groupName])) : current.filter(name => name !== groupName);
+      return { ...admin, groupAccess };
+    }));
+  };
 
   const changePassword = event => {
     event.preventDefault();
@@ -938,7 +1002,7 @@ function Admin({ groups, people, admins, setAdmins, currentUser, onCurrentUserUp
       setPasswordMessage('De nya lösenorden matchar inte.');
       return;
     }
-    const updatedUser = { ...storedUser, password: newPassword };
+    const updatedUser = { ...storedUser, password: newPassword, mustChangePassword: false };
     setAdmins(prev => prev.map(admin => admin.id === storedUser.id ? updatedUser : admin));
     onCurrentUserUpdate(publicUser(updatedUser));
     setCurrentPassword('');
@@ -960,10 +1024,12 @@ function Admin({ groups, people, admins, setAdmins, currentUser, onCurrentUserUp
       </div>
     </section>
     <section className="panel admin-users">
-      <div className="panel-head"><div><h2>Användare</h2><p>Admin skapar användare. Nya användare väljer lösenord vid första inloggningen.</p></div><span className="tag">{admins.length} användare</span></div>
+      <div className="panel-head"><div><h2>Användare</h2><p>Admin skapar konto, tilldelar grupper och anger ett tillfälligt lösenord som måste bytas vid första inloggning.</p></div><span className="tag">{admins.length} användare</span></div>
       {canManageUsers ? <form className="admin-user-form" onSubmit={addAdmin}>
         <label>Namn<input value={adminName} onChange={e => setAdminName(e.target.value)} placeholder="Förnamn Efternamn" required /></label>
         <label>E-postadress<input type="email" value={adminEmail} onChange={e => setAdminEmail(e.target.value)} placeholder="namn@organisation.se" required /></label>
+        <label>Tillfälligt lösenord<input type="text" value={temporaryPassword} onChange={e => setTemporaryPassword(e.target.value)} placeholder="Minst 6 tecken" required /></label>
+        <div className="admin-group-picker"><span>Grupper</span>{groupOptions.map(groupName => <label key={groupName}><input type="checkbox" checked={selectedGroups.includes(groupName)} onChange={() => toggleSelectedGroup(groupName)} />{groupName}</label>)}</div>
         <button className="primary"><Plus size={17}/>Lägg till</button>
       </form> : <div className="empty-state">Endast admin kan skapa användare.</div>}
       <div className="admin-user-list">
@@ -972,7 +1038,12 @@ function Admin({ groups, people, admins, setAdmins, currentUser, onCurrentUserUp
           const isLastAdmin = admin.role === 'Admin' && admins.filter(user => user.role === 'Admin').length <= 1;
           const canRemove = canManageUsers && !isCurrent && !isLastAdmin;
           const removeReason = isCurrent ? 'Du kan inte ta bort dig själv' : isLastAdmin ? 'Sista admin kan inte tas bort' : 'Endast admin kan ta bort användare';
-          return <div className="admin-user-row" key={admin.id}><div className="mini-avatar">{userInitials(admin.name)}</div><span><strong>{admin.name}</strong><small>{admin.email} · {admin.role}{admin.password ? '' : ' · väntar på lösenord'}</small></span><button className="secondary small danger danger-compact" disabled={!canRemove} title={canRemove ? `Ta bort ${admin.name}` : removeReason} onClick={() => removeAdmin(admin.id)}><Trash2 size={14}/>Ta bort</button></div>;
+          return <div className="admin-user-row" key={admin.id}>
+            <div className="mini-avatar">{userInitials(admin.name)}</div>
+            <span><strong>{admin.name}</strong><small>{admin.email} · {admin.role}{admin.mustChangePassword ? ' · måste byta lösenord' : ''}</small></span>
+            <div className="admin-user-groups">{userCanSeeAll(admin) ? <small>Alla grupper</small> : groupOptions.map(groupName => <label key={groupName}><input type="checkbox" disabled={!canManageUsers} checked={(admin.groupAccess || []).includes(groupName)} onChange={event => updateUserGroups(admin.id, groupName, event.target.checked)} />{groupName}</label>)}</div>
+            <button className="secondary small danger danger-compact" disabled={!canRemove} title={canRemove ? `Ta bort ${admin.name}` : removeReason} onClick={() => removeAdmin(admin.id)}><Trash2 size={14}/>Ta bort</button>
+          </div>;
         })}
       </div>
     </section>
@@ -987,7 +1058,7 @@ function Admin({ groups, people, admins, setAdmins, currentUser, onCurrentUserUp
       {passwordMessage ? <div className={passwordMessage.includes('uppdaterat') ? 'password-message success' : 'password-message'}>{passwordMessage}</div> : null}
     </section>
     <div className="admin-list">
-      <section><ShieldCheck/><div><h3>Behörigheter</h3><p>HR-ansvariga kan se allt. Användare kan också ändra struktur och inställningar.</p></div><span className="tag">Aktivt</span></section>
+      <section><ShieldCheck/><div><h3>Behörigheter</h3><p>Admin ser alla grupper och medarbetare. Användare ser bara medarbetare i tilldelade grupper.</p></div><span className="tag">Aktivt</span></section>
       <section><Shapes/><div><h3>Organisation</h3><p>{groups.length} grupper.</p></div><span className="tag">Synkroniserat</span></section>
     </div>
   </>;
@@ -1022,7 +1093,15 @@ function App() {
   const [dateTo, setDateTo] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [overviewMode, setOverviewMode] = useState('default');
-  const peopleGroupOptions = ["Alla", ...Array.from(new Set([...groups.map(groupLabel), ...people.map(person => person.unit).filter(Boolean)]))];
+  const visiblePeople = useMemo(() => filterPeopleForUser(people, currentUser), [people, currentUser]);
+  const visibleGroups = useMemo(() => filterGroupsForUser(groups, currentUser), [groups, currentUser]);
+  const navigationItems = useMemo(() => [
+    ['Översikt', LayoutDashboard],
+    ['Medarbetare', Users],
+    ['Grupper', Shapes],
+    ...(userCanSeeAll(currentUser) ? [['Administration', Settings]] : []),
+  ], [currentUser]);
+  const peopleGroupOptions = ["Alla", ...Array.from(new Set([...visibleGroups.map(groupLabel), ...visiblePeople.map(person => person.unit).filter(Boolean)]))];
   const hasPeopleFilters = Boolean(query.trim() || groupFilter !== "Alla" || dateFrom || dateTo);
   const navigateTo = label => {
     setActive(label);
@@ -1092,33 +1171,33 @@ function App() {
     localStorage.setItem(`${storageKey}-session`, user.email);
   };
 
-  const selectedPerson = useMemo(() => people.find(person => person.id === selectedId) || null, [people, selectedId]);
+  const selectedPerson = useMemo(() => visiblePeople.find(person => person.id === selectedId) || null, [visiblePeople, selectedId]);
 
   const page = useMemo(() => {
-    if (hasPeopleFilters) return <PeopleSearchResults people={people} groups={groups} query={query} groupFilter={groupFilter} dateFrom={dateFrom} dateTo={dateTo} setSelectedId={setSelectedId} />;
-    if (active === 'Översikt') return <Overview people={people} groups={groups} mode={overviewMode} onNavigate={navigateTo} onShowProbation={() => setOverviewMode('probation')} setSelectedId={setSelectedId} />;
-    if (active === 'Medarbetare') return <Employees people={people} groups={groups} query={query} setSelectedId={setSelectedId} onAdd={() => setNewEmployeeOpen(true)} onOpenFilters={() => setFiltersOpen(true)} />;
-    if (active === 'Grupper') return <Groups groups={groups} setGroups={setGroups} people={people} setPeople={setPeople} />;
-    return <Admin groups={groups} people={people} admins={admins} setAdmins={setAdmins} currentUser={currentUser} onCurrentUserUpdate={updateCurrentUser} colorTheme={colorTheme} setColorTheme={setColorTheme} />;
-  }, [active, people, groups, groupTypes, query, groupFilter, dateFrom, dateTo, hasPeopleFilters, admins, currentUser, colorTheme, overviewMode]);
+    if (hasPeopleFilters) return <PeopleSearchResults people={visiblePeople} groups={visibleGroups} query={query} groupFilter={groupFilter} dateFrom={dateFrom} dateTo={dateTo} setSelectedId={setSelectedId} />;
+    if (active === 'Översikt') return <Overview people={visiblePeople} groups={visibleGroups} mode={overviewMode} onNavigate={navigateTo} onShowProbation={() => setOverviewMode('probation')} setSelectedId={setSelectedId} />;
+    if (active === 'Medarbetare') return <Employees people={visiblePeople} groups={visibleGroups} query={query} setSelectedId={setSelectedId} onAdd={() => setNewEmployeeOpen(true)} onOpenFilters={() => setFiltersOpen(true)} />;
+    if (active === 'Grupper') return <Groups groups={visibleGroups} setGroups={setGroups} people={visiblePeople} setPeople={setPeople} canManage={userCanSeeAll(currentUser)} />;
+    if (active === 'Administration' && userCanSeeAll(currentUser)) return <Admin groups={groups} people={people} admins={admins} setAdmins={setAdmins} currentUser={currentUser} onCurrentUserUpdate={updateCurrentUser} colorTheme={colorTheme} setColorTheme={setColorTheme} />;
+    return <Overview people={visiblePeople} groups={visibleGroups} mode={overviewMode} onNavigate={navigateTo} onShowProbation={() => setOverviewMode('probation')} setSelectedId={setSelectedId} />;
+  }, [active, visiblePeople, visibleGroups, people, groups, groupTypes, query, groupFilter, dateFrom, dateTo, hasPeopleFilters, admins, currentUser, colorTheme, overviewMode]);
 
   if (backendLoading) {
     return <div className="login-shell"><section className="login-panel"><div className="login-brand"><strong>Folk<span>.</span></strong><small>Medarbetarkoll</small></div><p className="loading-state">Laddar data från backend...</p></section></div>;
   }
 
   if (!currentUser) {
-    return <LoginScreen users={admins} setUsers={setAdmins} onLogin={login} />;
+    return <LoginScreen users={admins} onLogin={login} />;
+  }
+
+  if (currentUser.mustChangePassword) {
+    return <ForcePasswordChange currentUser={currentUser} admins={admins} setAdmins={setAdmins} onCurrentUserUpdate={updateCurrentUser} />;
   }
 
   return <div className="app-shell">
     <aside className={`sidebar ${menu ? 'open' : ''}`}>
       <div className="brand"><strong>Folk<span>.</span></strong><small>Medarbetarkoll</small></div>
-      <nav>{[
-        ['Översikt', LayoutDashboard],
-        ['Medarbetare', Users],
-        ['Grupper', Shapes],
-        ['Administration', Settings],
-      ].map(([label, Icon]) => <button key={label} className={active === label ? 'active' : ''} onClick={() => navigateTo(label)}><Icon size={20}/><span>{label}</span></button>)}</nav>
+      <nav>{navigationItems.map(([label, Icon]) => <button key={label} className={active === label ? 'active' : ''} onClick={() => navigateTo(label)}><Icon size={20}/><span>{label}</span></button>)}</nav>
       <div className="sidebar-foot"><div className="mini-avatar">{userInitials(currentUser.name)}</div><span><b>{currentUser.name}</b><small>{currentUser.role}</small></span></div>
     </aside>
     <div className="main-wrap">
@@ -1137,8 +1216,8 @@ function App() {
       </div> : null}
       <main>{backendError ? <div className="backend-alert">{backendError}</div> : null}{page}</main>
     </div>
-    {newEmployeeOpen ? <Modal title="Lägg till medarbetare" onClose={() => setNewEmployeeOpen(false)}><EmployeeForm groups={groups} groupTypes={groupTypes} actor={currentUser} onClose={() => setNewEmployeeOpen(false)} onSave={person => { setPeople(prev => [...prev, person]); setNewEmployeeOpen(false); setActive('Medarbetare'); }} /></Modal> : null}
-    {selectedPerson ? <PersonDetail person={selectedPerson} setPeople={setPeople} groups={groups} groupTypes={groupTypes} currentUser={currentUser} onClose={() => setSelectedId(null)} /> : null}
+    {newEmployeeOpen ? <Modal title="Lägg till medarbetare" onClose={() => setNewEmployeeOpen(false)}><EmployeeForm groups={visibleGroups} groupTypes={groupTypes} actor={currentUser} onClose={() => setNewEmployeeOpen(false)} onSave={person => { setPeople(prev => [...prev, person]); setNewEmployeeOpen(false); setActive('Medarbetare'); }} /></Modal> : null}
+    {selectedPerson ? <PersonDetail person={selectedPerson} setPeople={setPeople} groups={visibleGroups} groupTypes={groupTypes} currentUser={currentUser} onClose={() => setSelectedId(null)} /> : null}
   </div>;
 }
 
