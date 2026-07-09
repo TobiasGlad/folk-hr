@@ -84,6 +84,7 @@ db.exec(`
     status TEXT NOT NULL DEFAULT 'Anställd',
     color TEXT NOT NULL DEFAULT '#dce9e3',
     documents_json TEXT NOT NULL DEFAULT '[]',
+    notes_json TEXT NOT NULL DEFAULT '[]',
     recruitment_json TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -104,6 +105,13 @@ db.exec(`
     PRIMARY KEY (person_id, key)
   );
 `);
+
+function ensureColumn(table, column, definition) {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all().map(row => row.name);
+  if (!columns.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+
+ensureColumn('people', 'notes_json', `TEXT NOT NULL DEFAULT '[]'`);
 
 const groupLabel = group => (typeof group === 'string' ? group : group?.name || group?.unit || '');
 const normalizeGroupTypes = groupTypes => {
@@ -192,6 +200,7 @@ function toDbPerson(person) {
     status: person.status || 'Anställd',
     color: person.color || '#dce9e3',
     documentsJson: JSON.stringify(Array.isArray(person.documents) ? person.documents : []),
+    notesJson: JSON.stringify(Array.isArray(person.notes) ? person.notes : []),
     recruitmentJson: JSON.stringify({}),
   };
 }
@@ -201,8 +210,8 @@ function upsertPerson(person) {
   db.prepare(`
     INSERT INTO people (
       id, first_name, last_name, personal_number, address, email, phone, education, role, group_id, group_type,
-      employment_start, employment_type, probation_start, probation_end, rate, status, color, documents_json, recruitment_json, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      employment_start, employment_type, probation_start, probation_end, rate, status, color, documents_json, notes_json, recruitment_json, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       first_name = excluded.first_name,
       last_name = excluded.last_name,
@@ -222,11 +231,12 @@ function upsertPerson(person) {
       status = excluded.status,
       color = excluded.color,
       documents_json = excluded.documents_json,
+      notes_json = excluded.notes_json,
       recruitment_json = excluded.recruitment_json,
       updated_at = excluded.updated_at
   `).run(
     p.id, p.firstName, p.lastName, p.personalNumber, p.address, p.email, p.phone, p.education, p.role, p.groupId, p.groupType,
-    p.employmentStart, p.employmentType, p.probationStart, p.probationEnd, p.rate, p.status, p.color, p.documentsJson, p.recruitmentJson, new Date().toISOString()
+    p.employmentStart, p.employmentType, p.probationStart, p.probationEnd, p.rate, p.status, p.color, p.documentsJson, p.notesJson, p.recruitmentJson, new Date().toISOString()
   );
 }
 
@@ -271,6 +281,7 @@ function peopleFromDb() {
       start: employmentDate,
       color: row.color,
       documents: parseJson(row.documents_json, []),
+      notes: parseJson(row.notes_json, []),
     };
   });
 }

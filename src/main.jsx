@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Shapes,
   Settings, Search, Bell, UserPlus, SlidersHorizontal, ChevronRight,
   Plus, X, Trash2, Upload, Download,
-  Building2, ShieldCheck, Pencil, Menu, LogOut
+  Building2, ShieldCheck, Pencil, Menu, LogOut, FileText
 } from 'lucide-react';
 import './styles.css';
 
@@ -76,6 +76,21 @@ function normalizeDocuments(documents = []) {
   return documents.map((doc, index) => normalizeDocument(doc, { id: doc?.id || `doc-${index}` })).filter(Boolean);
 }
 
+function normalizeNote(note, fallback = {}) {
+  const text = (note?.text || note?.body || fallback.text || '').trim();
+  if (!text) return null;
+  return {
+    id: note?.id || fallback.id || `note-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    text,
+    createdAt: note?.createdAt || note?.date || fallback.createdAt || new Date().toISOString(),
+    createdBy: publicUser(note?.createdBy || note?.author || fallback.createdBy || null),
+  };
+}
+
+function normalizeNotes(notes = []) {
+  return (Array.isArray(notes) ? notes : []).map((note, index) => normalizeNote(note, { id: note?.id || `note-${index}` })).filter(Boolean);
+}
+
 function createDocumentEntry(fileRecord, meta = {}) {
   return normalizeDocument({
     name: fileRecord.name,
@@ -103,11 +118,13 @@ function normalizePerson(person, unitToGroupType = new Map()) {
   const unit = person.unit || person.groupUnit || person.group || '';
   const group = person.group || person.groupType || unitToGroupType.get(unit) || '';
   const documents = normalizeDocuments(Array.isArray(person.documents) ? person.documents : []);
+  const notes = normalizeNotes(person.notes || person.anteckningar || []);
   return {
     ...person,
     unit,
     group,
     documents,
+    notes,
   };
 }
 
@@ -153,6 +170,7 @@ function createEmployeeFromForm(data, actor = null) {
     hiredAt: new Date().toISOString(),
     hiredBy: actor,
     documents: Array.isArray(data.documents) ? data.documents : [],
+    notes: [],
   });
 }
 
@@ -526,6 +544,13 @@ function DocumentShelf({ person, setPeople, title, subtitle, uploadLabel = 'Ladd
     event.target.value = '';
   };
 
+  const removeDocument = id => {
+    setPeople(prev => prev.map(current => current.id === person.id ? normalizePerson({
+      ...current,
+      documents: (current.documents || []).filter(document => document.id !== id),
+    }) : current));
+  };
+
   return <section className="document-section">
     <div className="panel-head document-section-head"><div><h2>{title}</h2>{subtitle ? <p>{subtitle}</p> : null}</div></div>
     <div className="document-list">
@@ -538,6 +563,7 @@ function DocumentShelf({ person, setPeople, title, subtitle, uploadLabel = 'Ladd
         <div className="document-row-actions">
           <button type="button" className="secondary small" onClick={() => setPreviewDocument(doc)}><FileText size={15}/>Visa</button>
           <a className="secondary small" href={doc.dataUrl} download={makeDocumentDownloadName(doc)}><Download size={15}/>Hämta</a>
+          <button type="button" className="secondary small danger" onClick={() => removeDocument(doc.id)}><Trash2 size={15}/>Ta bort</button>
         </div>
       </div>) : <div className="empty-state">Inga uppladdade dokument ännu.</div>}
     </div>
@@ -550,8 +576,46 @@ function DocumentShelf({ person, setPeople, title, subtitle, uploadLabel = 'Ladd
   </section>;
 }
 
-function EmployeeDetail({ person, setPeople, onClose, onEdit }) {
+function NotesPanel({ person, setPeople, actor }) {
+  const notes = normalizeNotes(person.notes || []);
+  const [text, setText] = useState('');
+
+  const addNote = event => {
+    event.preventDefault();
+    const note = normalizeNote({ text, createdBy: actor, createdAt: new Date().toISOString() });
+    if (!note) return;
+    setPeople(prev => prev.map(current => current.id === person.id ? normalizePerson({
+      ...current,
+      notes: [note, ...(current.notes || [])],
+    }) : current));
+    setText('');
+  };
+
+  const removeNote = id => {
+    setPeople(prev => prev.map(current => current.id === person.id ? normalizePerson({
+      ...current,
+      notes: (current.notes || []).filter(note => note.id !== id),
+    }) : current));
+  };
+
+  return <section className="notes-section">
+    <form className="note-form" onSubmit={addNote}>
+      <label>Ny anteckning<textarea value={text} onChange={e => setText(e.target.value)} placeholder="Skriv en daterad anteckning..." rows="4" /></label>
+      <div className="note-form-actions"><span>Författare: {formatActor(actor)}</span><button className="primary" disabled={!text.trim()}>Lägg till anteckning</button></div>
+    </form>
+    <div className="note-list">
+      {notes.length ? notes.map(note => <article className="note-row" key={note.id}>
+        <div className="note-meta"><strong>{formatActor(note.createdBy)}</strong><span>{note.createdAt ? new Date(note.createdAt).toLocaleString('sv-SE') : 'Okänt datum'}</span></div>
+        <p>{note.text}</p>
+        <button type="button" className="secondary small danger" onClick={() => removeNote(note.id)}><Trash2 size={15}/>Ta bort</button>
+      </article>) : <div className="empty-state">Inga anteckningar ännu.</div>}
+    </div>
+  </section>;
+}
+
+function EmployeeDetail({ person, setPeople, actor, onClose, onEdit }) {
   // För en färdig medarbetare visas profilvyn med samma data som i redigeringen plus dokumentlista.
+  const [profileTab, setProfileTab] = useState('documents');
   return <Modal title="Medarbetarprofil" onClose={onClose} wide>
     <div className="profile-head">
       <Avatar person={person} large />
@@ -575,12 +639,16 @@ function EmployeeDetail({ person, setPeople, onClose, onEdit }) {
       <div><label>Skapad av</label><b>{formatAudit(person.createdBy, person.createdAt)}</b></div>
       <div><label>Anställd av</label><b>{formatAudit(person.hiredBy, person.hiredAt)}</b></div>
     </div>
-    <DocumentShelf
+    <div className="profile-tabs" role="tablist" aria-label="Medarbetarprofil">
+      <button type="button" className={profileTab === 'documents' ? 'active' : ''} onClick={() => setProfileTab('documents')}>Dokument</button>
+      <button type="button" className={profileTab === 'notes' ? 'active' : ''} onClick={() => setProfileTab('notes')}>Anteckningar</button>
+    </div>
+    {profileTab === 'documents' ? <DocumentShelf
       person={person}
       setPeople={setPeople}
       title="Dokument"
-      subtitle="CV, registerutdrag, kvitton, intyg och andra filer samlas här."
-    />
+      subtitle="CV, anställningsavtal, registerutdrag, intyg och andra filer samlas här."
+    /> : <NotesPanel person={person} setPeople={setPeople} actor={actor} />}
   </Modal>;
 }
 
@@ -668,13 +736,13 @@ function EmployeeEditForm({ person, groups, groupTypes, onClose, onSave }) {
     </form>
   </Modal>;
 }
-function PersonDetail({ person, setPeople, groups, groupTypes, onClose }) {
+function PersonDetail({ person, setPeople, groups, groupTypes, currentUser, onClose }) {
   // Ett enda valpunkt för medarbetarprofiler.
   const [editing, setEditing] = useState(false);
   if (editing) {
     return <EmployeeEditForm person={person} groups={groups} groupTypes={groupTypes} onClose={() => setEditing(false)} onSave={updated => { setPeople(prev => prev.map(current => current.id === updated.id ? normalizePerson(updated) : current)); setEditing(false); }} />;
   }
-  return <EmployeeDetail person={person} setPeople={setPeople} onClose={onClose} onEdit={() => setEditing(true)} />;
+  return <EmployeeDetail person={person} setPeople={setPeople} actor={currentUser} onClose={onClose} onEdit={() => setEditing(true)} />;
 }
 
 function TypeCheckboxes({ selected, onChange }) {
@@ -1045,7 +1113,7 @@ function App() {
       <main>{backendError ? <div className="backend-alert">{backendError}</div> : null}{page}</main>
     </div>
     {newEmployeeOpen ? <Modal title="Lägg till medarbetare" onClose={() => setNewEmployeeOpen(false)}><EmployeeForm groups={groups} groupTypes={groupTypes} actor={currentUser} onClose={() => setNewEmployeeOpen(false)} onSave={person => { setPeople(prev => [...prev, person]); setNewEmployeeOpen(false); setActive('Medarbetare'); }} /></Modal> : null}
-    {selectedPerson ? <PersonDetail person={selectedPerson} setPeople={setPeople} groups={groups} groupTypes={groupTypes} onClose={() => setSelectedId(null)} /> : null}
+    {selectedPerson ? <PersonDetail person={selectedPerson} setPeople={setPeople} groups={groups} groupTypes={groupTypes} currentUser={currentUser} onClose={() => setSelectedId(null)} /> : null}
   </div>;
 }
 
