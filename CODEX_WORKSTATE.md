@@ -27,6 +27,7 @@ Det som nyligen gjorts:
 - `Tystnadsplikt` och `Checklista` har egna dokumentrutor.
 - `Ovriga dokument` ligger sist och ar enda icke-obligatoriska dokumentrutan.
 - Texten `Filbox` ar borttagen och dokumenttitlar visas utan fetstil.
+- Efter 10 minuters passivitet visas en fraga om anvandaren vill fortsatta vara inloggad eller logga ut.
 
 ## Starta efter crash eller omstart
 

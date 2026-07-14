@@ -33,6 +33,8 @@ const initialPeopleSeed = [
   { id: 6, firstName: 'Jonas', lastName: 'Nilsson', name: 'Jonas Nilsson', initials: 'JN', personalNumber: '19790630-3326', address: 'Torgvägen 9, 153 36 Järna', email: 'jonas.nilsson@folk.se', phone: '070-225 91 02', education: 'Vård- och omsorgsprogrammet', unit: 'Ängslyckan', group: 'LSS', role: 'Timvikarie', rate: 40, employmentType: 'Timanställning', status: 'Anställd', start: '2026-04-10', employmentDate: '2026-04-10', probationStart: '', probationEnd: '', color: '#dbe8df' },
 ];
 const storageKey = 'folk-state-v1';
+const inactivityPromptDelayMs = 10 * 60 * 1000;
+const inactivityEvents = ['pointerdown', 'keydown', 'wheel', 'touchstart', 'focus'];
 const documentKinds = ['CV', 'Anställningsavtal', 'Registerutdrag', 'Övrigt'];
 const documentStatusFields = [
   { key: 'hasCv', label: 'CV', kind: 'CV' },
@@ -1906,6 +1908,7 @@ function App() {
   const [searchColumnKeys, setSearchColumnKeys] = useState(savedUi.searchColumnKeys);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [overviewMode, setOverviewMode] = useState(savedUi.overviewMode);
+  const [sessionPromptOpen, setSessionPromptOpen] = useState(false);
   const visiblePeople = useMemo(() => filterPeopleForUser(people, currentUser), [people, currentUser]);
   const visibleGroups = useMemo(() => filterGroupsForUser(groups, currentUser), [groups, currentUser]);
   const activeVisiblePeople = useMemo(() => visiblePeople.filter(person => person.status === 'Anställd'), [visiblePeople]);
@@ -1996,14 +1999,36 @@ function App() {
   }, [active, peopleTab, overviewMode, query, groupFilter, dateFrom, dateTo, sortField, sortDirection, filterPanelTab, searchColumnKeys]);
 
   const login = user => {
+    setSessionPromptOpen(false);
     setCurrentUser(user);
     localStorage.setItem(`${storageKey}-session`, user.email);
   };
 
   const logout = () => {
+    setSessionPromptOpen(false);
     setCurrentUser(null);
     localStorage.removeItem(`${storageKey}-session`);
   };
+
+  const keepSessionActive = () => {
+    setSessionPromptOpen(false);
+  };
+
+  useEffect(() => {
+    if (!currentUser || sessionPromptOpen) return undefined;
+
+    let timerId = window.setTimeout(() => setSessionPromptOpen(true), inactivityPromptDelayMs);
+    const resetTimer = () => {
+      window.clearTimeout(timerId);
+      timerId = window.setTimeout(() => setSessionPromptOpen(true), inactivityPromptDelayMs);
+    };
+
+    inactivityEvents.forEach(eventName => window.addEventListener(eventName, resetTimer, { passive: true }));
+    return () => {
+      window.clearTimeout(timerId);
+      inactivityEvents.forEach(eventName => window.removeEventListener(eventName, resetTimer));
+    };
+  }, [currentUser, sessionPromptOpen]);
 
   const updateCurrentUser = user => {
     setCurrentUser(user);
@@ -2088,6 +2113,16 @@ function App() {
     {newEmployeeOpen ? <Modal title="Lägg till medarbetare" onClose={() => setNewEmployeeOpen(false)}><EmployeeForm groups={visibleGroups} groupTypes={groupTypes} actor={currentUser} onClose={() => setNewEmployeeOpen(false)} onSave={person => { setPeople(prev => [...prev, person]); setNewEmployeeOpen(false); setActive('Medarbetare'); }} /></Modal> : null}
     {newRecruitmentOpen ? <Modal title="Lägg till person i rekrytering" onClose={() => setNewRecruitmentOpen(false)}><RecruitmentAddForm actor={currentUser} onClose={() => setNewRecruitmentOpen(false)} onSave={person => { setPeople(prev => [...prev, person]); setNewRecruitmentOpen(false); setActive('Rekrytering'); }} /></Modal> : null}
     {selectedPerson ? <PersonDetail person={selectedPerson} setPeople={setPeople} groups={visibleGroups} groupTypes={groupTypes} currentUser={currentUser} onClose={() => setSelectedId(null)} onArchive={archivePerson} /> : null}
+    {sessionPromptOpen ? <div className="modal-backdrop session-timeout-backdrop" role="dialog" aria-modal="true" aria-labelledby="session-timeout-title">
+      <section className="session-timeout-modal">
+        <h2 id="session-timeout-title">Vill du fortsätta vara inloggad?</h2>
+        <p>Du har varit passiv i 10 minuter. Fortsätt sessionen eller logga ut.</p>
+        <div className="session-timeout-actions">
+          <button type="button" className="secondary" onClick={logout}>Logga ut</button>
+          <button type="button" className="primary" autoFocus onClick={keepSessionActive}>Fortsätt vara inloggad</button>
+        </div>
+      </section>
+    </div> : null}
   </div>;
 }
 
