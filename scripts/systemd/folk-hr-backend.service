@@ -1,0 +1,15 @@
+[Unit]
+Description=Folk HR backend
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/srv/web-projects/folk-hr
+Environment=PATH=/home/tobias/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PORT=8020
+ExecStart=/home/tobias/.local/bin/npm run server
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target
