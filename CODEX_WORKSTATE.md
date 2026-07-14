@@ -46,7 +46,7 @@ Backend/API kor lokalt pa:
 
 - http://localhost:8020
 
-I systemd/dev-laget serverar backend inte frontend-HTML. Appen ska oppnas via frontendporten `5173`; port `8020` ar bara for API.
+Backend serverar inte frontend-HTML som standard. Appen ska oppnas via frontendporten `5173`; port `8020` ar bara for API.
 
 Loggar finns lokalt i:
 

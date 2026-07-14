@@ -10,7 +10,7 @@ const dbPath = join(dataDir, 'folk.db');
 const distDir = join(rootDir, 'dist');
 const port = Number(process.env.PORT || 8020);
 const host = process.env.HOST || '0.0.0.0';
-const serveFrontend = process.env.SERVE_FRONTEND !== 'false';
+const serveFrontend = process.env.SERVE_FRONTEND === 'true';
 
 const groupCategoryOptions = ['LSS', 'HVB', 'Skola', 'Verksamhet', 'Kontor'];
 const initialGroupTypes = groupCategoryOptions;
@@ -385,7 +385,7 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (!serveFrontend) {
-      sendJson(res, 404, { error: 'Frontend is served by Vite on port 5173' });
+      sendJson(res, 404, { error: 'Backend API only. Open the frontend on port 5173.' });
       return;
     }
     await serveStatic(req, res);
