@@ -112,6 +112,8 @@ function ensureColumn(table, column, definition) {
 }
 
 ensureColumn('people', 'notes_json', `TEXT NOT NULL DEFAULT '[]'`);
+ensureColumn('people', 'recruitment_json', `TEXT NOT NULL DEFAULT '{}'`);
+ensureColumn('people', 'audit_json', "TEXT NOT NULL DEFAULT '{}'");
 
 const groupLabel = group => (typeof group === 'string' ? group : group?.name || group?.unit || '');
 const normalizeGroupTypes = groupTypes => {
@@ -201,7 +203,18 @@ function toDbPerson(person) {
     color: person.color || '#dce9e3',
     documentsJson: JSON.stringify(Array.isArray(person.documents) ? person.documents : []),
     notesJson: JSON.stringify(Array.isArray(person.notes) ? person.notes : []),
-    recruitmentJson: JSON.stringify({}),
+    recruitmentJson: JSON.stringify(person.recruitment || {}),
+    auditJson: JSON.stringify({
+      createdAt: person.createdAt || '',
+      createdBy: person.createdBy || null,
+      profileCreatedAt: person.profileCreatedAt || '',
+      profileCreatedBy: person.profileCreatedBy || null,
+      hiredAt: person.hiredAt || '',
+      hiredBy: person.hiredBy || null,
+      assignedUnits: Array.isArray(person.assignedUnits) ? person.assignedUnits : [],
+      archivedAt: person.archivedAt || '',
+      archivedBy: person.archivedBy || null,
+    }),
   };
 }
 
@@ -210,8 +223,8 @@ function upsertPerson(person) {
   db.prepare(`
     INSERT INTO people (
       id, first_name, last_name, personal_number, address, email, phone, education, role, group_id, group_type,
-      employment_start, employment_type, probation_start, probation_end, rate, status, color, documents_json, notes_json, recruitment_json, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      employment_start, employment_type, probation_start, probation_end, rate, status, color, documents_json, notes_json, recruitment_json, audit_json, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       first_name = excluded.first_name,
       last_name = excluded.last_name,
@@ -233,10 +246,11 @@ function upsertPerson(person) {
       documents_json = excluded.documents_json,
       notes_json = excluded.notes_json,
       recruitment_json = excluded.recruitment_json,
+      audit_json = excluded.audit_json,
       updated_at = excluded.updated_at
   `).run(
     p.id, p.firstName, p.lastName, p.personalNumber, p.address, p.email, p.phone, p.education, p.role, p.groupId, p.groupType,
-    p.employmentStart, p.employmentType, p.probationStart, p.probationEnd, p.rate, p.status, p.color, p.documentsJson, p.notesJson, p.recruitmentJson, new Date().toISOString()
+    p.employmentStart, p.employmentType, p.probationStart, p.probationEnd, p.rate, p.status, p.color, p.documentsJson, p.notesJson, p.recruitmentJson, p.auditJson, new Date().toISOString()
   );
 }
 
@@ -282,6 +296,8 @@ function peopleFromDb() {
       color: row.color,
       documents: parseJson(row.documents_json, []),
       notes: parseJson(row.notes_json, []),
+      recruitment: parseJson(row.recruitment_json, {}),
+      ...parseJson(row.audit_json, {}),
     };
   });
 }

@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
-  LayoutDashboard, Users, Shapes,
+  LayoutDashboard, Users, Shapes, Archive,
   Settings, Search, UserPlus, SlidersHorizontal, ChevronRight,
   Plus, X, Trash2, Upload, Download,
   Building2, ShieldCheck, Pencil, Menu, LogOut, FileText
@@ -33,8 +33,32 @@ const initialPeopleSeed = [
   { id: 6, firstName: 'Jonas', lastName: 'Nilsson', name: 'Jonas Nilsson', initials: 'JN', personalNumber: '19790630-3326', address: 'Torgvägen 9, 153 36 Järna', email: 'jonas.nilsson@folk.se', phone: '070-225 91 02', education: 'Vård- och omsorgsprogrammet', unit: 'Ängslyckan', group: 'LSS', role: 'Timvikarie', rate: 40, employmentType: 'Timanställning', status: 'Anställd', start: '2026-04-10', employmentDate: '2026-04-10', probationStart: '', probationEnd: '', color: '#dbe8df' },
 ];
 const storageKey = 'folk-state-v1';
-const documentKinds = ['CV', 'Registerutdrag', 'Kvitto', 'Intyg', 'Avtal', 'Annat'];
+const documentKinds = ['CV', 'Anställningsavtal', 'Registerutdrag', 'Övrigt'];
+const documentStatusFields = [
+  { key: 'hasCv', label: 'CV', kind: 'CV' },
+  { key: 'hasEmploymentContract', label: 'Anställningsavtal', kind: 'Anställningsavtal' },
+  { key: 'hasRegisterExtract', label: 'Registerutdrag', kind: 'Registerutdrag' },
+  { key: 'hasOtherDocuments', label: 'Övriga dokument', kind: 'Övrigt' },
+];
 const apiStatePath = '/api/state';
+const acceptedDocumentAccept = '.doc,.docx,.pdf,.png,.jpg,.jpeg,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,image/png,image/jpeg';
+const acceptedDocumentExtensions = ['.doc', '.docx', '.pdf', '.png', '.jpg', '.jpeg'];
+const acceptedDocumentMimeTypes = ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/pdf', 'image/png', 'image/jpeg'];
+
+function isAllowedDocumentFile(file) {
+  const name = String(file?.name || '').toLocaleLowerCase('sv');
+  const mime = String(file?.type || '').toLocaleLowerCase('sv');
+  return acceptedDocumentMimeTypes.includes(mime) || acceptedDocumentExtensions.some(extension => name.endsWith(extension));
+}
+
+async function readAllowedDocumentAsDataUrl(file) {
+  if (!isAllowedDocumentFile(file)) {
+    window.alert('Formatet stöds inte. Tillåtna format är Word, PDF, PNG och JPG.');
+    return null;
+  }
+  return readFileAsDataUrl(file);
+}
+
 
 async function loadBackendState() {
   const response = await fetch(apiStatePath, { headers: { accept: 'application/json' } });
@@ -114,6 +138,60 @@ function makeDocumentDownloadName(document) {
   return document.name || `dokument-${document.kind || 'annat'}`;
 }
 
+function dataUrlToUint8Array(dataUrl = '') {
+  const base64 = String(dataUrl).split(',')[1] || '';
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+function readZipName(bytes, offset, length) {
+  return new TextDecoder().decode(bytes.slice(offset, offset + length));
+}
+
+async function inflateRaw(bytes) {
+  if (!('DecompressionStream' in window)) throw new Error('Saknar stöd för Word-förhandsvisning i webbläsaren.');
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function extractDocxEntry(bytes, entryName) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  for (let offset = 0; offset < bytes.length - 30; offset += 1) {
+    if (view.getUint32(offset, true) !== 0x04034b50) continue;
+    const method = view.getUint16(offset + 8, true);
+    const compressedSize = view.getUint32(offset + 18, true);
+    const fileNameLength = view.getUint16(offset + 26, true);
+    const extraLength = view.getUint16(offset + 28, true);
+    const name = readZipName(bytes, offset + 30, fileNameLength);
+    const dataStart = offset + 30 + fileNameLength + extraLength;
+    const dataEnd = dataStart + compressedSize;
+    if (name === entryName) {
+      const compressed = bytes.slice(dataStart, dataEnd);
+      if (method === 0) return compressed;
+      if (method === 8) return inflateRaw(compressed);
+      throw new Error('Word-filen använder en komprimering som inte kan förhandsvisas.');
+    }
+    offset = Math.max(offset, dataEnd - 1);
+  }
+  throw new Error('Kunde inte hitta dokumenttext i Word-filen.');
+}
+
+function docxXmlToText(xmlText) {
+  const xml = new DOMParser().parseFromString(xmlText, 'application/xml');
+  const paragraphs = Array.from(xml.getElementsByTagName('w:p'));
+  const textBlocks = paragraphs.map(paragraph => Array.from(paragraph.getElementsByTagName('w:t')).map(node => node.textContent || '').join('')).filter(Boolean);
+  return textBlocks.join('\n\n').trim();
+}
+
+async function previewDocxText(document) {
+  const bytes = dataUrlToUint8Array(document.dataUrl);
+  const documentXml = await extractDocxEntry(bytes, 'word/document.xml');
+  const xmlText = new TextDecoder().decode(documentXml);
+  return docxXmlToText(xmlText) || 'Word-dokumentet innehåller ingen läsbar text.';
+}
+
 function employmentDuration(person) {
   const startValue = person.employmentDate || person.start || person.employmentStart || '';
   if (!startValue) return null;
@@ -125,15 +203,117 @@ function employmentDuration(person) {
   return { startValue, days };
 }
 
+const recruitmentStepOrder = ['interview', 'agreement', 'trial', 'approval'];
+const recruitmentStepLabels = {
+  interview: 'Intervju',
+  agreement: 'Avtal',
+  trial: 'Provpass',
+  approval: 'Godkännande',
+};
+
+function normalizeRecruitment(recruitment = {}) {
+  const rawStep = recruitment.step === 'checklist' ? 'approval' : recruitment.step;
+  const step = recruitmentStepOrder.includes(rawStep) ? rawStep : 'interview';
+  return {
+    step,
+    interviewDone: Boolean(recruitment.interviewDone),
+    interviewCompletedAt: recruitment.interviewCompletedAt || '',
+    trialDate: recruitment.trialDate || '',
+    trialUnit: recruitment.trialUnit || '',
+    trialDraftDate: recruitment.trialDraftDate || '',
+    trialDraftUnit: recruitment.trialDraftUnit || '',
+    trialPasses: Array.isArray(recruitment.trialPasses) ? recruitment.trialPasses : (recruitment.trialDate && recruitment.trialUnit ? [{ id: 'legacy-trial', date: recruitment.trialDate, unit: recruitment.trialUnit }] : []),
+    trialDone: Boolean(recruitment.trialDone),
+    agreementDone: Boolean(recruitment.agreementDone),
+    checklistDone: Boolean(recruitment.checklistDone),
+    referenceComment: recruitment.referenceComment || '',
+    assignedUnits: Array.isArray(recruitment.assignedUnits) ? recruitment.assignedUnits : [],
+    closedAt: recruitment.closedAt || '',
+    closedReason: recruitment.closedReason || '',
+  };
+}
+
+function recruitmentStepIndex(step) {
+  return Math.max(0, recruitmentStepOrder.indexOf(step));
+}
+
+function recruitmentProgress(candidate) {
+  const recruitment = normalizeRecruitment(candidate.recruitment || {});
+  return recruitmentStepIndex(recruitment.step) + 1;
+}
+
+function hasMeaningfulRecruitment(recruitment = {}) {
+  const normalized = normalizeRecruitment(recruitment);
+  return normalized.step !== 'interview' || normalized.interviewDone || normalized.agreementDone || normalized.trialDone || normalized.checklistDone || normalized.trialPasses.length > 0 || normalized.trialDraftDate || normalized.trialDraftUnit || normalized.assignedUnits.length > 0 || normalized.referenceComment;
+}
+
+function shouldPreferLocalRecruitment(localRecruitment = {}, backendRecruitment = {}) {
+  const local = normalizeRecruitment(localRecruitment);
+  const backend = normalizeRecruitment(backendRecruitment);
+  if (!hasMeaningfulRecruitment(local)) return false;
+  if (!hasMeaningfulRecruitment(backend)) return true;
+  if (local.trialPasses.length > backend.trialPasses.length) return true;
+  if (recruitmentStepIndex(local.step) > recruitmentStepIndex(backend.step)) return true;
+  if (local.assignedUnits.length > backend.assignedUnits.length) return true;
+  return false;
+}
+
+function mergeLocalRecruitment(backendPeople = [], localPeople = []) {
+  const localById = new Map((Array.isArray(localPeople) ? localPeople : []).map(person => [person.id, person]));
+  return (Array.isArray(backendPeople) ? backendPeople : []).map(person => {
+    const local = localById.get(person.id);
+    if (!local || !shouldPreferLocalRecruitment(local.recruitment, person.recruitment)) return person;
+    return { ...person, recruitment: normalizeRecruitment({ ...(person.recruitment || {}), ...(local.recruitment || {}) }) };
+  });
+}
+
+function createRecruitmentCandidate(data, actor = null) {
+  const { firstName, lastName } = splitFullName(data.name);
+  const fullName = `${firstName} ${lastName}`.trim();
+  const initials = fullName.split(' ').map(part => part[0]).slice(0, 2).join('').toUpperCase();
+  return normalizePerson({
+    id: Date.now(),
+    firstName,
+    lastName,
+    name: fullName,
+    initials,
+    personalNumber: data.personalNumber || '',
+    address: data.address || '',
+    email: data.email || '',
+    phone: data.phone || '',
+    education: data.education || '',
+    unit: '',
+    group: '',
+    role: data.role || '',
+    rate: Number(data.rate || 100),
+    employmentType: '',
+    status: 'Rekrytering',
+    start: '',
+    employmentDate: '',
+    color: '#dce9e3',
+    createdAt: new Date().toISOString(),
+    createdBy: actor,
+    documents: Array.isArray(data.documents) ? data.documents : [],
+    notes: [],
+    recruitment: normalizeRecruitment({ step: 'interview' }),
+  });
+}
+
 function normalizePerson(person, unitToGroupType = new Map()) {
   const unit = person.unit || person.groupUnit || person.group || '';
   const group = person.group || person.groupType || unitToGroupType.get(unit) || '';
   const documents = normalizeDocuments(Array.isArray(person.documents) ? person.documents : []);
   const notes = normalizeNotes(person.notes || person.anteckningar || []);
+  const recruitment = normalizeRecruitment(person.recruitment || {});
+  const hasProbation = person.hasProbation !== undefined ? Boolean(person.hasProbation) : Boolean(person.probationEnd || person.employmentType === 'Provanställning');
   return {
     ...person,
     unit,
     group,
+    recruitment,
+    hasProbation,
+    probationStart: '',
+    probationEnd: hasProbation ? (person.probationEnd || '') : '',
     documents,
     notes,
   };
@@ -171,13 +351,16 @@ function createEmployeeFromForm(data, actor = null) {
     start: data.employmentDate || new Date().toISOString().slice(0, 10),
     employmentDate: data.employmentDate || '',
     employmentType: data.employmentType || '',
-    probationStart: data.probationStart || '',
-    probationEnd: data.probationEnd || '',
+    hasProbation: data.hasProbation === 'on' || data.hasProbation === true,
+    probationStart: '',
+    probationEnd: (data.hasProbation === 'on' || data.hasProbation === true) ? (data.probationEnd || '') : '',
     noticeDate: data.noticeDate || '',
     terminationDate: data.terminationDate || '',
     color: '#dce9e3',
     createdAt: new Date().toISOString(),
     createdBy: actor,
+    profileCreatedAt: new Date().toISOString(),
+    profileCreatedBy: actor,
     hiredAt: new Date().toISOString(),
     hiredBy: actor,
     documents: Array.isArray(data.documents) ? data.documents : [],
@@ -322,6 +505,39 @@ function loadState() {
   }
 }
 
+function loadUiState() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(`${storageKey}-ui`) || '{}');
+    return {
+      active: parsed.active || 'Översikt',
+      peopleTab: parsed.peopleTab || 'list',
+      overviewMode: parsed.overviewMode || 'default',
+      query: parsed.query || '',
+      groupFilter: Array.isArray(parsed.groupFilter) ? parsed.groupFilter : [],
+      dateFrom: parsed.dateFrom || '',
+      dateTo: parsed.dateTo || '',
+      sortField: parsed.sortField || 'name',
+      sortDirection: parsed.sortDirection || 'asc',
+      filterPanelTab: parsed.filterPanelTab || 'filters',
+      searchColumnKeys: Array.isArray(parsed.searchColumnKeys) ? parsed.searchColumnKeys : defaultSearchColumnKeys,
+    };
+  } catch {
+    return {
+      active: 'Översikt',
+      peopleTab: 'list',
+      overviewMode: 'default',
+      query: '',
+      groupFilter: [],
+      dateFrom: '',
+      dateTo: '',
+      sortField: 'name',
+      sortDirection: 'asc',
+      filterPanelTab: 'filters',
+      searchColumnKeys: defaultSearchColumnKeys,
+    };
+  }
+}
+
 function groupOrder(allGroups, presentGroups) {
   const known = allGroups.filter(group => presentGroups.includes(groupLabel(group)));
   const knownNames = known.map(groupLabel);
@@ -335,6 +551,12 @@ function groupLabel(group) {
 
 function groupTypesFor(group) {
   return normalizeGroupTypes(typeof group === 'string' ? [] : (group?.types || group?.type || group?.groupTypes || group?.groupType || []));
+}
+
+function isTrialHouseGroup(group) {
+  const label = groupLabel(group).toLocaleLowerCase('sv');
+  const types = groupTypesFor(group).map(type => type.toLocaleLowerCase('sv'));
+  return !label.includes('vikarie') && !types.some(type => type.includes('vikarie'));
 }
 
 function groupType(group) {
@@ -407,6 +629,7 @@ function EmployeeForm({ groups, groupTypes, actor, onSave, onClose }) {
   const [documentKind, setDocumentKind] = useState('');
   const [documentLabel, setDocumentLabel] = useState('');
   const [previewDocument, setPreviewDocument] = useState(null);
+  const [hasProbation, setHasProbation] = useState(false);
   const groupOptions = groupCategoriesFor(groups, selectedUnit, groupTypes.length ? groupTypes : groupCategoryOptions);
 
   const submit = e => {
@@ -418,7 +641,8 @@ function EmployeeForm({ groups, groupTypes, actor, onSave, onClose }) {
   const handleDocumentUpload = async event => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const fileRecord = await readFileAsDataUrl(file);
+    const fileRecord = await readAllowedDocumentAsDataUrl(file);
+    if (!fileRecord) return;
     const document = createDocumentEntry(fileRecord, {
       kind: documentKind.trim() || 'Dokument',
       label: documentLabel.trim(),
@@ -440,7 +664,7 @@ function EmployeeForm({ groups, groupTypes, actor, onSave, onClose }) {
     <div className="form-grid"><label>Grupp<select name="unit" value={selectedUnit} onChange={e => setSelectedUnit(e.target.value)} required>{unitOptions.map(unit => { const label = groupLabel(unit); return <option key={label || 'tom-grupp'} value={label}>{label || 'Välj grupp'}</option>; })}</select></label><label>Typ<select name="group" required>{groupOptions.map(group => <option key={group || 'tom-typ'} value={group}>{group || 'Välj typ'}</option>)}</select></label></div>
     <div className="form-grid"><label>Roll<input name="role" required placeholder="Ex. Stödassistent" /></label><label>Tjänstgöringsgrad<input name="rate" type="number" min="0" max="100" defaultValue="100" /></label></div>
     <div className="form-grid"><label>Anställningsstart<input name="employmentDate" type="date" /></label><label>Anställningstyp<input name="employmentType" placeholder="Ex. tillsvidare" /></label></div>
-    <div className="form-grid"><label>Provanställning start<input name="probationStart" type="date" /></label><label>Provanställning slut<input name="probationEnd" type="date" /></label></div>
+    <div className="form-grid"><label className="checkbox-field"><input name="hasProbation" type="checkbox" checked={hasProbation} onChange={e => setHasProbation(e.target.checked)} />Provanställning</label>{hasProbation ? <label>Provanställning slut<input name="probationEnd" type="date" /></label> : <div />}</div>
     <div className="form-grid"><label>Uppsägning inlämnad<input name="noticeDate" type="date" /></label><label>Sista anställningsdag<input name="terminationDate" type="date" /></label></div>
     <section className="inline-document-upload">
       <div className="panel-head"><div><h2>Dokument</h2><p>CV, anställningsavtal, intyg och andra filer.</p></div><span className="tag">{documents.length} filer</span></div>
@@ -448,7 +672,7 @@ function EmployeeForm({ groups, groupTypes, actor, onSave, onClose }) {
         <label>Dokumenttyp<input value={documentKind} onChange={e => setDocumentKind(e.target.value)} placeholder="CV, anställningsavtal, intyg..." /></label>
         <label>Benämning<input value={documentLabel} onChange={e => setDocumentLabel(e.target.value)} placeholder="Kort beskrivning eller version" /></label>
       </div>
-      <label className="secondary file-button document-upload-button"><Upload size={16}/>Ladda upp dokument<input type="file" onChange={handleDocumentUpload} /></label>
+      <label className="secondary file-button document-upload-button"><Upload size={16}/>Ladda upp dokument<input type="file" accept={acceptedDocumentAccept} onChange={handleDocumentUpload} /></label>
       <div className="document-list">
         {documents.length ? documents.map(document => <div className="document-row" key={document.id}>
           <div className="document-row-main"><strong>{document.name}</strong><span>{document.kind}{document.label ? ` · ${document.label}` : ''}</span><small>{document.uploadedAt ? new Date(document.uploadedAt).toLocaleDateString('sv-SE') : 'Idag'}</small></div>
@@ -461,11 +685,314 @@ function EmployeeForm({ groups, groupTypes, actor, onSave, onClose }) {
   </form>;
 }
 
+
+function RecruitmentDocumentList({ documents, emptyText, onPreview, onRemove }) {
+  const rows = normalizeDocuments(documents || []);
+  if (!rows.length) return <div className="document-empty-row required">{emptyText}</div>;
+  return <div className="recruitment-doc-list">
+    {rows.map(document => <div className="document-row compact" key={document.id}>
+      <div className="document-row-main"><strong>{document.name}</strong><span>{document.kind || 'Dokument'}{document.label ? ` · ${document.label}` : ''}</span><small>{document.uploadedAt ? new Date(document.uploadedAt).toLocaleDateString('sv-SE') : 'Idag'}</small></div>
+      <div className="document-row-actions"><button type="button" className="secondary small" onClick={() => onPreview(document)}><FileText size={15}/>Visa</button><a className="secondary small" href={document.dataUrl} download={makeDocumentDownloadName(document)}><Download size={15}/>Hämta</a>{onRemove ? <button type="button" className="secondary small danger danger-compact" onClick={() => onRemove(document.id)}><Trash2 size={14}/>Ta bort</button> : null}</div>
+    </div>)}
+  </div>;
+}
+
+
+function RecruitmentAddForm({ actor, onSave, onClose }) {
+  const [cvDocument, setCvDocument] = useState(null);
+  const [previewDocument, setPreviewDocument] = useState(null);
+
+  const submit = event => {
+    event.preventDefault();
+    const data = Object.fromEntries(new FormData(event.currentTarget));
+    onSave(createRecruitmentCandidate({ ...data, documents: cvDocument ? [cvDocument] : [] }, actor));
+  };
+
+  const handleCvUpload = async event => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const fileRecord = await readAllowedDocumentAsDataUrl(file);
+    if (!fileRecord) return;
+    setCvDocument(createDocumentEntry(fileRecord, { kind: 'CV', label: 'CV', source: 'Rekrytering' }));
+    event.target.value = '';
+  };
+
+  return <form className="form" onSubmit={submit}>
+    <label>Fullständigt namn<input name="name" required placeholder="Förnamn Efternamn" /></label>
+    <div className="form-grid"><label>Personnummer<input name="personalNumber" placeholder="ÅÅÅÅMMDD-XXXX" /></label><label>Telefon<input name="phone" placeholder="070-000 00 00" /></label></div>
+    <label>Adress<input name="address" placeholder="Gata, postnummer och ort" /></label>
+    <div className="form-grid"><label>E-post<input type="email" name="email" placeholder="namn@organisation.se" /></label><label>Utbildning<input name="education" placeholder="Ex. undersköterska" /></label></div>
+    <label>Roll<input name="role" placeholder="Ex. Stödassistent" /></label>
+    <section className="inline-document-upload recruitment-initial-cv">
+      <div className="panel-head"><div><h2>CV</h2><p>Ladda upp CV direkt när rekryteringen skapas.</p></div>{cvDocument ? <span className="doc-status ok">Finns</span> : <span className="doc-status required">Måste ordnas</span>}</div>
+      {cvDocument ? <div className="document-row compact"><div className="document-row-main"><strong>{cvDocument.name}</strong><span>CV</span></div><div className="document-row-actions"><button type="button" className="secondary small" onClick={() => setPreviewDocument(cvDocument)}><FileText size={15}/>Visa</button><button type="button" className="secondary small danger danger-compact" onClick={() => setCvDocument(null)}><Trash2 size={14}/>Ta bort</button></div></div> : <div className="document-empty-row required">Inget CV uppladdat ännu.</div>}
+      <label className="secondary file-button document-upload-button"><Upload size={16}/>Ladda upp CV<input type="file" accept={acceptedDocumentAccept} onChange={handleCvUpload} /></label>
+    </section>
+    <div className="form-actions"><button type="button" className="secondary" onClick={onClose}>Avbryt</button><button className="primary">Lägg till i rekrytering</button></div>
+    <DocumentPreviewModal document={previewDocument} onClose={() => setPreviewDocument(null)} />
+  </form>;
+}
+
+function RecruitmentUploadButton({ label, kind, documentLabel, candidate, setPeople }) {
+  const handleUpload = async event => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const fileRecord = await readAllowedDocumentAsDataUrl(file);
+    if (!fileRecord) return;
+    setPeople(prev => prev.map(person => person.id === candidate.id ? applyDocumentUpload(person, fileRecord, {
+      kind,
+      label: documentLabel,
+      source: 'Rekrytering',
+      stepLabel: recruitmentStepLabels[normalizeRecruitment(candidate.recruitment).step],
+    }) : person));
+    event.target.value = '';
+  };
+  return <label className="secondary file-button recruitment-upload"><Upload size={15}/>{label}<input type="file" accept={acceptedDocumentAccept} onChange={handleUpload} /></label>;
+}
+
+function RecruitmentStepBar({ step, canOpenStep, onStepChange }) {
+  const currentIndex = recruitmentStepIndex(step);
+  return <div className="recruitment-stepbar">
+    {recruitmentStepOrder.map((item, index) => {
+      const isCurrent = index === currentIndex;
+      const canOpen = canOpenStep(item);
+      const className = `${index < currentIndex ? 'done' : isCurrent ? 'current' : ''}${canOpen ? ' open' : ' locked'}`.trim();
+      return <button type="button" key={item} className={className} disabled={!canOpen || isCurrent} onClick={() => onStepChange(item)}><span>{index + 1}</span><b>{recruitmentStepLabels[item]}</b></button>;
+    })}
+  </div>;
+}
+
+function RecruitmentCandidatePanel({ candidate, groups, groupTypes, setPeople, actor }) {
+  const recruitment = normalizeRecruitment(candidate.recruitment || {});
+  const groupNames = groups.map(groupLabel).filter(Boolean);
+  const trialGroupNames = groups.filter(isTrialHouseGroup).map(groupLabel).filter(Boolean);
+  const defaultTrialUnit = trialGroupNames[0] || '';
+  const normalizedTrialUnit = trialGroupNames.includes(recruitment.trialDraftUnit || recruitment.trialUnit) ? (recruitment.trialDraftUnit || recruitment.trialUnit) : defaultTrialUnit;
+  const [trialDate, setTrialDate] = useState(recruitment.trialDraftDate || '');
+  const [trialUnit, setTrialUnit] = useState(normalizedTrialUnit);
+  const [selectedUnits, setSelectedUnits] = useState(recruitment.assignedUnits || []);
+  const [trialPasses, setTrialPasses] = useState(recruitment.trialPasses || []);
+  const [previewDocument, setPreviewDocument] = useState(null);
+  const trialGroupKey = trialGroupNames.join('|');
+  const recruitmentStateKey = JSON.stringify(candidate.recruitment || {});
+  useEffect(() => {
+    const next = normalizeRecruitment(candidate.recruitment || {});
+    setTrialDate(next.trialDraftDate || '');
+    setTrialUnit(trialGroupNames.includes(next.trialDraftUnit || next.trialUnit) ? (next.trialDraftUnit || next.trialUnit) : defaultTrialUnit);
+    setSelectedUnits(next.assignedUnits || []);
+    setTrialPasses(next.trialPasses || []);
+  }, [candidate.id, defaultTrialUnit, trialGroupKey, recruitmentStateKey]);
+
+  const hasCv = documentsByKind(candidate, 'CV').length > 0;
+  const hasRegisterExtract = documentsByKind(candidate, 'Registerutdrag').length > 0;
+  const hasConfidentiality = normalizeDocuments(candidate.documents || []).some(document => String(document.label || document.name || '').toLocaleLowerCase('sv').includes('tystnadsplikt'));
+  const interviewReady = hasCv && hasRegisterExtract && hasConfidentiality;
+  const hasAgreement = documentsByKind(candidate, 'Anställningsavtal').length > 0;
+  const interviewDocuments = normalizeDocuments(candidate.documents || []).filter(document => documentKindMatches(document, 'CV') || documentKindMatches(document, 'Registerutdrag') || String(document.label || document.name || '').toLocaleLowerCase('sv').includes('tystnadsplikt'));
+  const agreementDocuments = documentsByKind(candidate, 'Anställningsavtal');
+  const checklistDocuments = normalizeDocuments(candidate.documents || []).filter(document => String(document.label || document.kind || document.name || '').toLocaleLowerCase('sv').includes('checklista'));
+  const otherApprovalDocuments = normalizeDocuments(candidate.documents || []).filter(document => {
+    const label = String(document.label || document.name || '').toLocaleLowerCase('sv');
+    return documentKindMatches(document, 'Övrigt') && !label.includes('tystnadsplikt') && !label.includes('checklista');
+  });
+  const updateRecruitment = patch => setPeople(prev => prev.map(person => person.id === candidate.id ? normalizePerson({ ...person, recruitment: normalizeRecruitment({ ...(person.recruitment || {}), ...patch }) }) : person));
+  const removeRecruitmentDocument = id => {
+    setPeople(prev => prev.map(person => person.id === candidate.id ? normalizePerson({
+      ...person,
+      documents: (person.documents || []).filter(document => document.id !== id),
+    }) : person));
+  };
+  const markInterviewDone = () => updateRecruitment({ interviewDone: true, interviewCompletedAt: new Date().toISOString(), step: 'agreement' });
+  const persistTrialPasses = (updater, extraPatch = {}) => {
+    setTrialPasses(prev => updater(prev));
+    setPeople(prev => prev.map(person => {
+      if (person.id !== candidate.id) return person;
+      const currentRecruitment = normalizeRecruitment(person.recruitment || {});
+      const nextPasses = updater(currentRecruitment.trialPasses || []);
+      return normalizePerson({
+        ...person,
+        recruitment: normalizeRecruitment({
+          ...currentRecruitment,
+          trialPasses: nextPasses,
+          trialDate: nextPasses[0]?.date || '',
+          trialUnit: nextPasses[0]?.unit || '',
+          ...extraPatch,
+        }),
+      });
+    }));
+  };
+  const updateTrialDate = value => {
+    setTrialDate(value);
+    updateRecruitment({ trialDraftDate: value, trialDraftUnit: trialUnit });
+  };
+  const updateTrialUnit = value => {
+    setTrialUnit(value);
+    updateRecruitment({ trialDraftDate: trialDate, trialDraftUnit: value });
+  };
+  const addTrialPass = () => {
+    if (!trialDate || !trialUnit) return;
+    const newPass = { id: `trial-${Date.now()}-${Math.random().toString(16).slice(2)}`, date: trialDate, unit: trialUnit };
+    persistTrialPasses(passes => [...passes, newPass], { trialDraftDate: '', trialDraftUnit: trialUnit });
+    setTrialDate('');
+  };
+  const removeTrialPass = id => persistTrialPasses(passes => passes.filter(pass => pass.id !== id));
+  const markTrialDone = () => {
+    const latestPasses = normalizeRecruitment(candidate.recruitment || {}).trialPasses || trialPasses;
+    updateRecruitment({ trialPasses: latestPasses, trialDate: latestPasses[0]?.date || '', trialUnit: latestPasses[0]?.unit || '', trialDone: true, step: 'approval' });
+  };
+  const markAgreementDone = () => updateRecruitment({ agreementDone: true, step: 'trial' });
+  const toggleUnit = unit => {
+    const nextUnits = selectedUnits.includes(unit) ? selectedUnits.filter(item => item !== unit) : [...selectedUnits, unit];
+    setSelectedUnits(nextUnits);
+    updateRecruitment({ assignedUnits: nextUnits });
+  };
+  const archiveRecruitmentCandidate = reason => {
+    const confirmed = window.confirm(`${reason} ${candidate.name}? Personen flyttas till Arkiv.`);
+    if (!confirmed) return;
+    setPeople(prev => prev.map(person => person.id === candidate.id ? normalizePerson({
+      ...person,
+      status: 'Arkiverad',
+      archivedAt: new Date().toISOString(),
+      archivedBy: actor,
+      recruitment: normalizeRecruitment({ ...(person.recruitment || {}), closedAt: new Date().toISOString(), closedReason: reason }),
+    }) : person));
+  };
+  const closeCandidate = () => archiveRecruitmentCandidate('Avsluta rekryteringen för');
+  const rejectCandidate = () => archiveRecruitmentCandidate('Avslå kandidaten');
+  const currentStepIndex = recruitmentStepIndex(recruitment.step);
+  const canOpenStep = step => {
+    if (step === 'interview') return true;
+    if (step === 'agreement') return recruitment.interviewDone || interviewReady || currentStepIndex >= recruitmentStepIndex('agreement');
+    if (step === 'trial') return recruitment.agreementDone || hasAgreement || currentStepIndex >= recruitmentStepIndex('trial');
+    if (step === 'approval') return recruitment.trialDone || trialPasses.length >= 2 || currentStepIndex >= recruitmentStepIndex('approval');
+    return false;
+  };
+  const goToStep = step => {
+    if (!canOpenStep(step)) return;
+    updateRecruitment({ step });
+  };
+  const previousStep = currentStepIndex > 0 ? recruitmentStepOrder[currentStepIndex - 1] : '';
+  const backButton = previousStep ? <button type="button" className="secondary" onClick={() => goToStep(previousStep)}>Tillbaka till {recruitmentStepLabels[previousStep]}</button> : null;
+  const approvalReady = hasCv && hasRegisterExtract && hasAgreement && recruitment.checklistDone && trialPasses.length >= 2 && selectedUnits.length > 0 && Boolean(recruitment.referenceComment.trim());
+  const hireCandidate = () => {
+    const units = selectedUnits.length ? selectedUnits : (trialUnit ? [trialUnit] : []);
+    if (!units.length) return;
+    const now = new Date().toISOString();
+    const employmentDate = now.slice(0, 10);
+    const primaryUnit = units[0];
+    const categories = groupCategoriesFor(groups, primaryUnit, groupTypes);
+    setPeople(prev => prev.map(person => {
+      if (person.id !== candidate.id) return person;
+      const referenceText = normalizeRecruitment(person.recruitment || {}).referenceComment.trim();
+      const referenceNote = referenceText ? normalizeNote({ text: 'Referenstagning: ' + referenceText, createdBy: actor, createdAt: now }) : null;
+      return normalizePerson({
+        ...person,
+        status: 'Anställd',
+        unit: primaryUnit,
+        group: person.group || categories[0] || '',
+        assignedUnits: units,
+        employmentDate,
+        start: employmentDate,
+        profileCreatedAt: now,
+        profileCreatedBy: actor,
+        hiredAt: now,
+        hiredBy: actor,
+        notes: referenceNote ? [...(person.notes || []), referenceNote] : (person.notes || []),
+        recruitment: normalizeRecruitment({ ...(person.recruitment || {}), checklistDone: true, assignedUnits: units, closedAt: now, closedReason: 'Anställd' }),
+      });
+    }));
+  };
+
+  return <section className="recruitment-detail panel">
+    <div className="panel-head"><div><h2>{candidate.name}</h2><p>{candidate.role || 'Roll saknas'} · {candidate.email || candidate.phone || 'Kontakt saknas'}</p></div><div className="recruitment-head-actions"><span className="tag">{recruitmentStepLabels[recruitment.step]}</span><button type="button" className="secondary small danger danger-compact" onClick={rejectCandidate}><Trash2 size={14}/>Avslå kandidat</button></div></div>
+    <RecruitmentStepBar step={recruitment.step} canOpenStep={canOpenStep} onStepChange={goToStep} />
+    {recruitment.step === 'interview' ? <div className="recruitment-step-content">
+      <div className="step-card"><div className="step-card-head"><div><strong>Intervju</strong><small>CV, registerutdrag och tystnadsplikt ska laddas upp i detta steg.</small></div><div className="doc-status-stack"><span className={hasCv ? 'doc-status ok' : 'doc-status required'}>CV {hasCv ? 'finns' : 'saknas'}</span><span className={hasRegisterExtract ? 'doc-status ok' : 'doc-status required'}>Utdrag {hasRegisterExtract ? 'finns' : 'saknas'}</span><span className={hasConfidentiality ? 'doc-status ok' : 'doc-status required'}>Tystnadsplikt {hasConfidentiality ? 'finns' : 'saknas'}</span></div></div>
+        <div className="recruitment-upload-grid">
+          <RecruitmentUploadButton label="Ladda upp CV" kind="CV" documentLabel="CV" candidate={candidate} setPeople={setPeople} />
+          <RecruitmentUploadButton label="Ladda upp registerutdrag" kind="Registerutdrag" documentLabel="Registerutdrag" candidate={candidate} setPeople={setPeople} />
+          <RecruitmentUploadButton label="Ladda upp tystnadsplikt" kind="Övrigt" documentLabel="Tystnadsplikt" candidate={candidate} setPeople={setPeople} />
+        </div>
+        <RecruitmentDocumentList documents={interviewDocuments} emptyText="Inga dokument" onPreview={setPreviewDocument} onRemove={removeRecruitmentDocument} />
+        <div className="step-card-actions"><span>{interviewReady ? 'CV, registerutdrag och tystnadsplikt är uppladdade.' : 'CV, registerutdrag och tystnadsplikt ska finnas innan du går vidare.'}</span><button type="button" className="primary" disabled={!interviewReady} onClick={markInterviewDone}>Steget är klart</button></div>
+      </div>
+    </div> : null}
+    {recruitment.step === 'trial' ? <div className="recruitment-step-content">
+      <div className="step-card"><div className="step-card-head"><div><strong>Provpass</strong><small>Lägg till minst två provpass med datum och enhet.</small></div><span className={trialPasses.length >= 2 ? 'doc-status ok' : 'doc-status required'}>{trialPasses.length}/2</span></div>
+        <div className="form-grid"><label className="step-field"><span>Datum för provpass</span><input type="date" value={trialDate} onChange={e => updateTrialDate(e.target.value)} /></label><label className="step-field"><span>Enhet</span><select value={trialUnit} onChange={e => updateTrialUnit(e.target.value)}>{trialGroupNames.length ? trialGroupNames.map(name => <option key={name} value={name}>{name}</option>) : <option value="">Inga hus tillgängliga</option>}</select></label></div>
+        <div className="trial-pass-actions"><button type="button" className="secondary small" disabled={!trialDate || !trialUnit} onClick={addTrialPass}><Plus size={14}/>Lägg till provpass</button></div>
+        <div className="trial-pass-list">{trialPasses.length ? trialPasses.map((pass, index) => <div key={pass.id} className="trial-pass-row"><span><strong>Provpass {index + 1}</strong><small>{formatDate(pass.date)} · {pass.unit}</small></span><button type="button" className="secondary small danger danger-compact" onClick={() => removeTrialPass(pass.id)}><Trash2 size={14}/>Ta bort</button></div>) : <div className="document-empty-row required">Inga provpass tillagda.</div>}</div>
+        <div className="step-card-actions"><span>{trialPasses.length >= 2 ? 'Minst två provpass är tillagda.' : 'Minst två provpass krävs för att gå vidare.'}</span><div className="step-action-buttons">{backButton}<button type="button" className="primary" disabled={trialPasses.length < 2} onClick={markTrialDone}>Steget är klart</button></div></div>
+      </div>
+    </div> : null}
+    {recruitment.step === 'agreement' ? <div className="recruitment-step-content">
+      <div className="step-card"><div className="step-card-head"><div><strong>Avtal</strong><small>Ladda upp anställningsavtal. Filen hamnar under Avtal i medarbetarprofilen.</small></div>{hasAgreement ? <span className="doc-status ok">Finns</span> : <span className="doc-status required">Måste ordnas</span>}</div>
+        <RecruitmentUploadButton label="Ladda upp avtal" kind="Anställningsavtal" documentLabel="Anställningsavtal" candidate={candidate} setPeople={setPeople} />
+        <RecruitmentDocumentList documents={agreementDocuments} emptyText="Inget avtal uppladdat ännu." onPreview={setPreviewDocument} onRemove={removeRecruitmentDocument} />
+        <div className="step-card-actions"><span>{hasAgreement ? 'Avtalet är uppladdat.' : 'Avtal krävs för att gå vidare.'}</span><div className="step-action-buttons">{backButton}<button type="button" className="primary" disabled={!hasAgreement} onClick={markAgreementDone}>Steget är klart</button></div></div>
+      </div>
+    </div> : null}
+    {recruitment.step === 'approval' ? <div className="recruitment-step-content">
+      <div className="step-card"><div className="step-card-head"><div><strong>Godkännande</strong><small>Granska rekryteringen, markera checklistan, ladda upp dokument och kommentera referenstagning.</small></div>{approvalReady ? <span className="doc-status ok">Redo</span> : <span className="doc-status required">Ej klar</span>}</div>
+        <div className="approval-summary-grid">
+          <div><strong>Intervju</strong><span>{hasCv && hasRegisterExtract ? 'CV och registerutdrag finns' : 'CV eller registerutdrag saknas'}</span></div>
+          <div><strong>Avtal</strong><span>{hasAgreement ? 'Anställningsavtal finns' : 'Anställningsavtal saknas'}</span></div>
+          <div><strong>Checklista</strong><span>{recruitment.checklistDone ? 'Checklista klar' : 'Checklista kvar'}{checklistDocuments.length ? ` · ${checklistDocuments.length} dokument` : ''}</span></div>
+          <div><strong>Provpass</strong><span>{trialPasses.length >= 2 ? `${trialPasses.length} provpass tillagda` : `${trialPasses.length}/2 provpass`}</span></div>
+          <div><strong>Enheter</strong><span>{selectedUnits.length ? selectedUnits.join(', ') : 'Inga enheter valda'}</span></div>
+        </div>
+        <div className="group-multi-filter"><span>Enheter personen ska tillhöra</span><div>{groupNames.map(name => <label key={name}><input type="checkbox" checked={selectedUnits.includes(name)} onChange={() => toggleUnit(name)} />{name}</label>)}</div></div>
+        <label className="check-confirm"><input type="checkbox" checked={recruitment.checklistDone} onChange={e => updateRecruitment({ checklistDone: e.target.checked })} /><span>Checklista klar</span></label>
+        <div className="recruitment-upload-grid"><RecruitmentUploadButton label="Ladda upp checklista" kind="Övrigt" documentLabel="Checklista" candidate={candidate} setPeople={setPeople} /></div>
+        <RecruitmentDocumentList documents={checklistDocuments} emptyText="Ingen checklista uppladdad" onPreview={setPreviewDocument} onRemove={removeRecruitmentDocument} />
+        <label className="step-field"><span>Kommentar om referenstagning</span><textarea value={recruitment.referenceComment} onChange={e => updateRecruitment({ referenceComment: e.target.value })} placeholder="Ex. referenser tagna och tillfrågade, datum och kort notering" /></label>
+        <div className="recruitment-upload-grid"><RecruitmentUploadButton label="Ladda upp övrig fil (frivilligt)" kind="Övrigt" documentLabel="Övrigt" candidate={candidate} setPeople={setPeople} /></div>
+        <RecruitmentDocumentList documents={otherApprovalDocuments} emptyText="Inga övriga dokument, frivilligt" onPreview={setPreviewDocument} onRemove={removeRecruitmentDocument} />
+        <div className="step-card-actions"><span>{approvalReady ? 'Alla krav är klara för godkännande. Övriga filer är frivilliga.' : 'CV, registerutdrag, avtal, checklista, minst två provpass, minst en enhet och kommentar om referenstagning krävs innan anställning. Övriga filer är frivilliga.'}</span><div className="step-action-buttons">{backButton}<button type="button" className="primary" disabled={!approvalReady} onClick={hireCandidate}>Flytta till Medarbetare</button></div></div>
+      </div>
+    </div> : null}
+    <DocumentPreviewModal document={previewDocument} onClose={() => setPreviewDocument(null)} />
+  </section>;
+}
+
+function Recruitment({ people, groups, groupTypes, setPeople, actor, onAdd }) {
+  const candidates = people.filter(person => person.status === 'Rekrytering').sort((a, b) => recruitmentProgress(b) - recruitmentProgress(a));
+  const [selectedCandidateId, setSelectedCandidateId] = useState(null);
+  const selectedCandidate = candidates.find(candidate => candidate.id === selectedCandidateId) || candidates[0] || null;
+  useEffect(() => {
+    if (!selectedCandidate && selectedCandidateId) setSelectedCandidateId(null);
+  }, [selectedCandidate, selectedCandidateId]);
+
+  return <>
+    <PageHeader title="Rekrytering" subtitle={`${candidates.length} aktiva kandidater`} onAdd={onAdd} addLabel="Lägg till person" />
+    <div className="recruitment-layout">
+      <section className="panel recruitment-list-panel">
+        <div className="panel-head"><div><h2>Kandidater</h2><p>Personer i rekryteringsflödet.</p></div></div>
+        <div className="candidate-list compact">{candidates.length ? candidates.map(candidate => { const recruitment = normalizeRecruitment(candidate.recruitment); return <button type="button" className={selectedCandidate?.id === candidate.id ? 'candidate-row active' : 'candidate-row'} key={candidate.id} onClick={() => setSelectedCandidateId(candidate.id)}><span className="person-cell"><Avatar person={candidate}/><span><b>{candidate.name}</b><small>{candidate.role || candidate.email || candidate.phone || '-'}</small></span></span><span className="tag muted">{recruitmentStepLabels[recruitment.step]}</span></button>; }) : <div className="empty-state">Inga personer i rekrytering.</div>}</div>
+      </section>
+      {selectedCandidate ? <RecruitmentCandidatePanel candidate={selectedCandidate} groups={groups} groupTypes={groupTypes} setPeople={setPeople} actor={actor} /> : <section className="panel"><div className="empty-state">Lägg till en person för att starta rekrytering.</div></section>}
+    </div>
+  </>;
+}
+
+
+function ArchiveView({ people, setSelectedId, onDelete }) {
+  const rows = people.filter(person => person.status === 'Arkiverad');
+  return <>
+    <PageHeader title="Arkiv" subtitle={`${rows.length} borttagna medarbetare`} />
+    <section className="panel list-panel archive-people-panel">
+      <div className="panel-head"><div><h2>Avslutade medarbetare</h2><p>Radering här tar bort personen permanent.</p></div></div>
+      <div className="employee-head archive-employee-head"><span>Medarbetare</span><span>Grupp</span><span>Roll</span><span>Borttagen</span><span>Borttagen av</span><span/></div>
+      {rows.length ? rows.map(person => <div className="employee-row archive-employee-row" key={person.id} role="button" tabIndex={0} onClick={() => setSelectedId(person.id)} onKeyDown={event => { if (event.key === 'Enter') setSelectedId(person.id); }}><span className="person-cell"><Avatar person={person}/><span><b>{person.name}</b><small>{person.email || person.role}</small></span></span><span>{person.unit || '-'}</span><span>{person.role || '-'}</span><span>{person.archivedAt ? formatDate(person.archivedAt) : '-'}</span><span>{formatActor(person.archivedBy)}</span><button type="button" className="icon-btn danger danger-icon row-delete" title={`Radera ${person.name} permanent`} aria-label={`Radera ${person.name} permanent`} onClick={event => { event.stopPropagation(); onDelete(person); }}><Trash2 size={13}/></button></div>) : <div className="empty-state">Arkivet är tomt.</div>}
+    </section>
+  </>;
+}
+
 function Overview({ people, groups, mode, onNavigate, onShowProbation, setSelectedId }) {
   // Översikten visar en snabb bild av personregistret.
   const active = people.filter(person => person.status === 'Anställd');
   const probationPeople = active
-    .filter(person => person.employmentType === 'Provanställning' || person.probationEnd)
+    .filter(person => person.hasProbation && person.probationEnd)
     .sort((a, b) => String(a.probationEnd || '9999-12-31').localeCompare(String(b.probationEnd || '9999-12-31')));
   const groupCount = groups.length || new Set(active.map(person => person.unit).filter(Boolean)).size;
 
@@ -478,8 +1005,8 @@ function Overview({ people, groups, mode, onNavigate, onShowProbation, setSelect
     </div>
     {mode === 'probation' ? <section className="panel list-panel">
       <div className="panel-head"><div><h2>Provanställningar</h2><p>Medarbetare som går provanställning och när den upphör.</p></div></div>
-      <div className="employee-head probation-head"><span>Medarbetare</span><span>Grupp</span><span>Typ</span><span>Roll</span><span>Start</span><span>Slutar</span><span/></div>
-      {probationPeople.length ? probationPeople.map(person => <button type="button" className="employee-row probation-row" key={person.id} onClick={() => setSelectedId(person.id)}><span className="person-cell"><Avatar person={person}/><span><b>{person.name}</b><small>{person.role}</small></span></span><span>{person.unit || '-'}</span><span>{person.group || '-'}</span><span>{person.role || '-'}</span><span>{person.probationStart ? formatDate(person.probationStart) : '-'}</span><span>{person.probationEnd ? formatDate(person.probationEnd) : '-'}</span><ChevronRight size={17}/></button>) : <div className="empty-state">Inga aktiva provanställningar.</div>}
+      <div className="employee-head probation-head"><span>Medarbetare</span><span>Grupp</span><span>Typ</span><span>Roll</span><span>Slutar</span><span/></div>
+      {probationPeople.length ? probationPeople.map(person => <button type="button" className="employee-row probation-row" key={person.id} onClick={() => setSelectedId(person.id)}><span className="person-cell"><Avatar person={person}/><span><b>{person.name}</b><small>{person.role}</small></span></span><span>{person.unit || '-'}</span><span>{person.group || '-'}</span><span>{person.role || '-'}</span><span>{person.probationEnd ? formatDate(person.probationEnd) : '-'}</span><ChevronRight size={17}/></button>) : <div className="empty-state">Inga aktiva provanställningar.</div>}
     </section> : <section className="panel list-panel">
       <div className="panel-head"><div><h2>Senast i personregistret</h2><p>Snabbvy över de första aktiva profilerna.</p></div></div>
       <div className="employee-head overview-employee-head"><span>Medarbetare</span><span>Grupp</span><span>Typ</span><span>Utbildning</span><span>Tjänstgöringsgrad</span><span>Anställningsstart</span></div>
@@ -488,7 +1015,7 @@ function Overview({ people, groups, mode, onNavigate, onShowProbation, setSelect
   </>;
 }
 
-function Employees({ people, groups, query, setSelectedId, onAdd, onOpenFilters }) {
+function Employees({ people, groups, query, setSelectedId, onAdd, onArchive, peopleTab, setPeopleTab, searchPanel, searchResults, hasPeopleFilters }) {
   // Medarbetarvyn filtrerar först och grupperar sedan så att listan går att läsa snabbt.
   const normalized = query.toLowerCase();
   const rows = people.filter(person => person.status === 'Anställd' && `${person.name} ${person.personalNumber || ''} ${person.address || ''} ${person.unit || ''} ${person.group || ''} ${person.role} ${person.education || ''} ${person.employmentType || ''}`.toLowerCase().includes(normalized));
@@ -502,41 +1029,210 @@ function Employees({ people, groups, query, setSelectedId, onAdd, onOpenFilters 
 
   return <>
     <PageHeader title="Medarbetare" subtitle={`${rows.length} aktiva profiler`} onAdd={onAdd} addLabel="Lägg till medarbetare" />
-    <section className="panel list-panel">
-      <div className="panel-head"><h2>Alla medarbetare</h2><button className="secondary small" onClick={onOpenFilters}><SlidersHorizontal size={16}/>Filtrera</button></div>
-      <div className="employee-head"><span>Medarbetare</span><span>Grupp</span><span>Typ</span><span>Utbildning</span><span>Tjänstgöringsgrad</span><span>Provanställning upphör</span><span/></div>
-      {rows.length ? orderedGroups.map(unit => { const unitName = groupLabel(unit); return <div key={unitName} className="group-section"><div className="group-section-head"><h3>{unitName}</h3><span>{(grouped[unitName] || []).length} personer</span></div>{(grouped[unitName] || []).map(person => <button className="employee-row" key={person.id} onClick={() => setSelectedId(person.id)}><span className="person-cell"><Avatar person={person}/><span><b>{person.name}</b><small>{person.role}</small></span></span><span>{person.unit || '-'}</span><span>{person.group || '-'}</span><span>{person.education || '-'}</span><span>{person.rate} %</span><span>{person.probationEnd ? new Date(person.probationEnd).toLocaleDateString('sv-SE') : '-'}</span><ChevronRight size={17}/></button>)}</div>; }) : <div className="empty-state">Inga aktiva medarbetare matchar sökningen.</div>}
-    </section>
+    <div className="employee-page-tabs" role="tablist" aria-label="Medarbetarvy"><button type="button" className={peopleTab === 'list' ? 'active' : ''} onClick={() => setPeopleTab('list')}>Lista</button><button type="button" className={peopleTab === 'search' ? 'active' : ''} onClick={() => setPeopleTab('search')}>Sök och filtrering</button></div>
+    {peopleTab === 'search' ? <section className="employee-search-tab">{searchPanel}{hasPeopleFilters ? searchResults : <section className="panel"><div className="empty-state">Välj sökord, filter eller sortering för att visa sökresultat.</div></section>}</section> : <section className="panel list-panel">
+      <div className="panel-head"><h2>Alla medarbetare</h2><button className="secondary small" onClick={() => setPeopleTab('search')}><SlidersHorizontal size={16}/>Sök och filtrera</button></div>
+      <div className="employee-head main-employee-head"><span>Medarbetare</span><span>Grupp</span><span>Typ</span><span>Utbildning</span><span>Tjänstgöringsgrad</span><span>Telefon</span><span>Dokument</span><span/></div>
+      {rows.length ? orderedGroups.map(unit => { const unitName = groupLabel(unit); return <div key={unitName} className="group-section"><div className="group-section-head"><h3>{unitName}</h3><span>{(grouped[unitName] || []).length} personer</span></div>{(grouped[unitName] || []).map(person => { const docStatus = documentListStatus(person); return <div className="employee-row main-employee-row" key={person.id} role="button" tabIndex={0} onClick={() => setSelectedId(person.id)} onKeyDown={event => { if (event.key === 'Enter') setSelectedId(person.id); }}><span className="person-cell"><Avatar person={person}/><span><b>{person.name}</b><small>{person.role}</small></span></span><span>{person.unit || '-'}</span><span>{person.group || '-'}</span><span>{person.education || '-'}</span><span>{person.rate} %</span><span>{person.phone || '-'}</span><span className={docStatus.missing.length ? 'employee-doc-warning' : 'employee-doc-ok'} title={docStatus.missing.length ? `Saknas: ${docStatus.missing.join(', ')}` : 'Alla dokument finns'}>{docStatus.label}</span><button type="button" className="icon-btn danger danger-icon row-delete" title={`Ta bort ${person.name}`} aria-label={`Ta bort ${person.name}`} onClick={event => { event.stopPropagation(); onArchive(person); }}><Trash2 size={13}/></button></div>; })}</div>; }) : <div className="empty-state">Inga aktiva medarbetare matchar sökningen.</div>}
+    </section>}
   </>;
 }
 
-function PeopleSearchResults({ people, groups, query, groupFilter, dateFrom, dateTo, setSelectedId }) {
+
+const personFieldLabels = {
+  name: 'Namn',
+  firstName: 'Förnamn',
+  lastName: 'Efternamn',
+  personalNumber: 'Personnummer',
+  address: 'Adress',
+  email: 'E-post',
+  phone: 'Telefon',
+  education: 'Utbildning',
+  role: 'Roll',
+  unit: 'Grupp',
+  group: 'Typ',
+  rate: 'Tjänstgöringsgrad',
+  employmentDate: 'Anställningsstart',
+  employmentStart: 'Anställningsstart',
+  employmentType: 'Anställningstyp',
+  hasProbation: 'Provanställning',
+  probationEnd: 'Provanställning slut',
+  noticeDate: 'Uppsägning inlämnad',
+  terminationDate: 'Sista anställningsdag',
+  status: 'Status',
+  start: 'Startdatum',
+  createdAt: 'Tillagd i Folk',
+  hiredAt: 'Anställd i Folk',
+  hasCv: 'CV',
+  hasEmploymentContract: 'Anställningsavtal',
+  hasRegisterExtract: 'Registerutdrag',
+  hasOtherDocuments: 'Övriga dokument',
+};
+const hiddenSearchFields = new Set(['id', 'initials', 'color', 'documents', 'notes', 'createdBy', 'hiredBy', 'recruitment']);
+const preferredSearchFieldOrder = ['name', 'firstName', 'lastName', 'personalNumber', 'email', 'phone', 'address', 'unit', 'group', 'role', 'education', 'employmentType', 'rate', 'employmentDate', 'hasCv', 'hasEmploymentContract', 'hasRegisterExtract', 'hasOtherDocuments', 'hasProbation', 'probationEnd', 'noticeDate', 'terminationDate', 'status', 'createdAt'];
+const dateFieldKeys = new Set(['employmentDate', 'employmentStart', 'start', 'probationEnd', 'noticeDate', 'terminationDate', 'createdAt', 'hiredAt']);
+const defaultSearchColumnKeys = ['unit', 'group', 'role', 'employmentType', 'employmentDate', 'hasCv', 'hasEmploymentContract', 'hasRegisterExtract', 'status'];
+
+function fieldLabel(key) {
+  return personFieldLabels[key] || key.replace(/([A-Z])/g, ' $1').replace(/[_-]/g, ' ').replace(/^./, char => char.toLocaleUpperCase('sv'));
+}
+
+function isSearchableValue(value) {
+  return value !== null && value !== undefined && ['string', 'number', 'boolean'].includes(typeof value);
+}
+
+
+function documentKindMatches(document, kind) {
+  const value = String(document?.kind || '').toLocaleLowerCase('sv');
+  if (kind === 'Anställningsavtal') return ['anställningsavtal', 'avtal'].includes(value);
+  if (kind === 'Övrigt') return !['cv', 'anställningsavtal', 'avtal', 'registerutdrag'].includes(value);
+  return value === kind.toLocaleLowerCase('sv');
+}
+
+function documentsByKind(person, kind) {
+  return normalizeDocuments(person?.documents || []).filter(document => documentKindMatches(document, kind));
+}
+
+const requiredDocumentKinds = ['CV', 'Anställningsavtal', 'Registerutdrag'];
+
+function missingRequiredDocuments(person) {
+  return requiredDocumentKinds.filter(kind => documentsByKind(person, kind).length === 0);
+}
+
+function documentListStatus(person) {
+  const missing = missingRequiredDocuments(person);
+  return { missing, label: missing.length ? `${missing.length} saknas` : 'OK' };
+}
+
+function documentStatusFor(person, key) {
+  const field = documentStatusFields.find(item => item.key === key);
+  if (!field) return '';
+  return documentsByKind(person, field.kind).length ? 'Finns' : 'Saknas';
+}
+
+function getPersonFieldValue(person, key) {
+  if (documentStatusFields.some(field => field.key === key)) return documentStatusFor(person, key);
+  const value = person?.[key];
+  if (isSearchableValue(value)) return value;
+  if (Array.isArray(value)) return value.map(item => isSearchableValue(item) ? item : '').filter(Boolean).join(', ');
+  if (value && typeof value === 'object' && !hiddenSearchFields.has(key)) {
+    return Object.values(value).filter(isSearchableValue).join(' ');
+  }
+  return '';
+}
+
+function personSearchText(person, fields) {
+  return fields.map(field => getPersonFieldValue(person, field.key)).filter(Boolean).join(' ').toLocaleLowerCase('sv');
+}
+
+function discoverPersonFields(people) {
+  const keys = new Set();
+  people.forEach(person => {
+    Object.entries(person || {}).forEach(([key, value]) => {
+      if (hiddenSearchFields.has(key)) return;
+      if (isSearchableValue(value) || (value && typeof value === 'object' && !Array.isArray(value))) keys.add(key);
+    });
+  });
+  documentStatusFields.forEach(field => keys.add(field.key));
+  return Array.from(keys)
+    .map(key => ({ key, label: fieldLabel(key), isDate: dateFieldKeys.has(key), isNumeric: people.some(person => typeof person?.[key] === 'number') }))
+    .sort((a, b) => {
+      const ai = preferredSearchFieldOrder.indexOf(a.key);
+      const bi = preferredSearchFieldOrder.indexOf(b.key);
+      if (ai !== -1 || bi !== -1) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+      return a.label.localeCompare(b.label, 'sv');
+    });
+}
+
+function formatFieldValue(value, field) {
+  if (value === null || value === undefined || value === '') return '-';
+  if (field?.isDate) return formatDate(String(value).slice(0, 10));
+  if (typeof value === 'boolean') return value ? 'Ja' : 'Nej';
+  if (field?.key === 'rate') return `${value} %`;
+  if (Array.isArray(value)) return value.join(', ') || '-';
+  if (typeof value === 'object') return Object.values(value).filter(isSearchableValue).join(', ') || '-';
+  return String(value);
+}
+
+function compareFieldValues(a, b, field, direction) {
+  const av = getPersonFieldValue(a, field.key);
+  const bv = getPersonFieldValue(b, field.key);
+  let result;
+  if (field.isNumeric) {
+    result = (Number(av) || 0) - (Number(bv) || 0);
+  } else if (field.isDate) {
+    result = String(av || '').localeCompare(String(bv || ''), 'sv');
+  } else {
+    result = String(av || '').localeCompare(String(bv || ''), 'sv', { numeric: true, sensitivity: 'base' });
+  }
+  return direction === 'desc' ? -result : result;
+}
+
+
+function exportSearchResultsPdf(rows, columns) {
+  const escapeHtml = value => String(value ?? '').replace(/[&<>"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char]));
+  const headers = ['Person', ...columns.map(column => column.label)];
+  const body = rows.map(person => `<tr><td><strong>${escapeHtml(person.name)}</strong><br><small>${escapeHtml(person.email || person.phone || person.role || '')}</small></td>${columns.map(column => `<td>${escapeHtml(formatFieldValue(getPersonFieldValue(person, column.key), column))}</td>`).join('')}</tr>`).join('');
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Folk sökresultat</title><style>body{font-family:Arial,sans-serif;color:#17211e;margin:24px}h1{font-size:20px;margin:0 0 6px}p{font-size:12px;color:#68736f;margin:0 0 16px}table{width:100%;border-collapse:collapse;font-size:10px}th,td{border:1px solid #d8dfdc;padding:5px 6px;text-align:left;vertical-align:top}th{background:#eef2f0;font-size:9px;text-transform:uppercase}tr:nth-child(even){background:#f7faf9}small{color:#68736f}</style></head><body><h1>Folk sökresultat</h1><p>${rows.length} personer · ${new Date().toLocaleDateString('sv-SE')}</p><table><thead><tr>${headers.map(header => `<th>${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody>${body || '<tr><td>Inga resultat</td></tr>'}</tbody></table><script>window.addEventListener('load',()=>{window.print();});</script></body></html>`;
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) return;
+  printWindow.document.write(html);
+  printWindow.document.close();
+}
+
+function PeopleSearchResults({ people, query, groupFilter, dateFrom, dateTo, sortField, sortDirection, searchColumnKeys, setSelectedId }) {
+  const fields = useMemo(() => discoverPersonFields(people), [people]);
   const normalized = query.trim().toLocaleLowerCase('sv');
+  const activeDateField = fields.find(field => field.key === 'employmentDate') || { key: 'employmentDate', label: 'Anställningsstart', isDate: true };
+  const activeSortField = fields.find(field => field.key === sortField) || fields.find(field => field.key === 'name') || fields[0] || { key: 'name', label: 'Namn' };
   const rows = people.filter(person => {
-    const searchable = [person.name, person.personalNumber, person.address, person.role, person.unit, person.group, person.email, person.phone, person.education, person.employmentType, person.status].filter(Boolean).join(' ').toLocaleLowerCase('sv');
-    const personDate = person.employmentDate || person.start || '';
+    const searchable = personSearchText(person, fields);
+    const personDate = String(getPersonFieldValue(person, activeDateField.key) || '').slice(0, 10);
     const matchesQuery = !normalized || searchable.includes(normalized);
-    const matchesGroup = groupFilter === 'Alla' || person.unit === groupFilter;
+    const selectedGroups = Array.isArray(groupFilter) ? groupFilter : (groupFilter && groupFilter !== 'Alla' ? [groupFilter] : []);
+    const matchesGroup = selectedGroups.length === 0 || selectedGroups.includes(person.unit);
     const matchesFrom = !dateFrom || (personDate && personDate >= dateFrom);
     const matchesTo = !dateTo || (personDate && personDate <= dateTo);
     return matchesQuery && matchesGroup && matchesFrom && matchesTo;
-  }).sort((a, b) => a.name.localeCompare(b.name, 'sv'));
+  }).sort((a, b) => compareFieldValues(a, b, activeSortField, sortDirection));
+  const selectedColumnKeys = Array.isArray(searchColumnKeys) ? searchColumnKeys : defaultSearchColumnKeys;
+  const visibleColumns = selectedColumnKeys
+    .filter((key, index, list) => key && list.indexOf(key) === index && !['name', 'firstName', 'lastName'].includes(key))
+    .map(key => fields.find(field => field.key === key) || { key, label: fieldLabel(key), isDate: dateFieldKeys.has(key) });
+  const resultGridStyle = {
+    '--search-columns': `150px repeat(${visibleColumns.length}, 104px) 32px`,
+    '--search-table-width': `${Math.max(820, 220 + visibleColumns.length * 118)}px`,
+  };
+  const activeSummary = [
+    query.trim() ? `Sök: ${query.trim()}` : '',
+    (Array.isArray(groupFilter) ? groupFilter : []).length ? `Grupper: ${groupFilter.join(', ')}` : '',
+    dateFrom || dateTo ? `${activeDateField.label}: ${dateFrom || 'start'} till ${dateTo || 'slut'}` : '',
+  ].filter(Boolean);
 
   return <>
-    <PageHeader title="Sökresultat" subtitle={`${rows.length} personer matchar valda sök- och filtervillkor`} />
-    <section className="panel people-search-panel">
-      <div className="people-search-head"><span>Person</span><span>Grupp</span><span>Typ</span><span>Anställnings-/startdatum</span><span>Status</span><span /></div>
-      {rows.length ? rows.map(person => {
-        const personDate = person.employmentDate || person.start;
-        return <button className="people-search-row" key={person.id} onClick={() => setSelectedId(person.id)}>
-          <span className="person-cell"><Avatar person={person}/><span><b>{person.name}</b><small>{person.role || person.email}</small></span></span>
-          <span>{person.unit || '-'}</span>
-          <span>{person.group || '-'}</span>
-          <span>{personDate ? formatDate(personDate) : '-'}</span>
-          <span><span className={person.status === 'Avvisad' ? 'tag danger' : 'tag'}>{person.status}</span></span>
-          <ChevronRight size={17}/>
-        </button>;
-      }) : <div className="empty-state">Inga personer matchar sökningen och de valda filtren.</div>}
+    <PageHeader title="Sökresultat" subtitle={`${rows.length} av ${people.length} personer matchar valda villkor`} />
+    <section className="search-workbench">
+      <div className="search-chip-panel">
+        <div><strong>Aktiva villkor</strong><span>{activeSummary.length ? `${activeSummary.length} filter` : 'Inga filter'}</span></div>
+        <div className="search-chip-list">{activeSummary.length ? activeSummary.map(item => <span key={item}>{item}</span>) : <span>Alla synliga personer visas</span>}</div>
+      </div>
+      <div className="result-toolbar">
+        <div><strong>Resultat</strong><span>{rows.length} poster · {visibleColumns.length} kolumner</span></div>
+        <div><span>Sorterat på</span><strong>{activeSortField.label} {sortDirection === 'asc' ? '↑' : '↓'}</strong></div>
+        <button type="button" className="secondary small" onClick={() => exportSearchResultsPdf(rows, visibleColumns)}><Download size={14}/>PDF</button>
+      </div>
+    </section>
+    <section className="panel people-search-panel advanced-search-panel" aria-label="Sökresultat">
+      <div className="result-table-scroll">
+        <table className="result-table" style={{ '--result-table-width': resultGridStyle['--search-table-width'] }}>
+          <thead><tr><th>Person</th>{visibleColumns.map(field => <th key={field.key}>{field.label}</th>)}<th /></tr></thead>
+          <tbody>{rows.length ? rows.map(person => <tr key={person.id} onClick={() => setSelectedId(person.id)} tabIndex={0} onKeyDown={event => { if (event.key === 'Enter') setSelectedId(person.id); }}>
+            <td><span className="table-person"><Avatar person={person}/><span><b>{person.name}</b><small>{person.email || person.phone || person.role}</small></span></span></td>
+            {visibleColumns.map(field => <td key={field.key} title={formatFieldValue(getPersonFieldValue(person, field.key), field)}>{field.key === 'status' ? <span className={person.status === 'Avvisad' ? 'tag danger' : 'tag'}>{person.status}</span> : documentStatusFields.some(item => item.key === field.key) ? <span className={getPersonFieldValue(person, field.key) === 'Finns' ? 'doc-status ok' : 'doc-status missing'}>{getPersonFieldValue(person, field.key)}</span> : formatFieldValue(getPersonFieldValue(person, field.key), field)}</td>)}
+            <td className="row-open"><ChevronRight size={13}/></td>
+          </tr>) : <tr><td colSpan={visibleColumns.length + 2}>Inga personer matchar sökningen och de valda filtren.</td></tr>}</tbody>
+        </table>
+      </div>
     </section>
   </>;
 }
@@ -545,18 +1241,47 @@ function documentMime(document) {
   return document.mimeType || document.type || '';
 }
 
+function documentName(document) {
+  return String(document?.name || '').toLocaleLowerCase('sv');
+}
+
+function isDocxDocument(document) {
+  const mime = documentMime(document);
+  return mime.includes('officedocument.wordprocessingml.document') || documentName(document).endsWith('.docx');
+}
+
+function isLegacyDocDocument(document) {
+  const mime = documentMime(document);
+  return mime === 'application/msword' || documentName(document).endsWith('.doc');
+}
+
 function canInlinePreview(document) {
   const mime = documentMime(document);
-  return mime.startsWith('image/') || mime === 'application/pdf' || mime.startsWith('text/') || mime.includes('word') || mime.includes('officedocument');
+  return mime.startsWith('image/') || mime === 'application/pdf' || mime.startsWith('text/') || isDocxDocument(document) || isLegacyDocDocument(document);
 }
 
 function DocumentPreviewModal({ document, onClose }) {
+  const [wordPreview, setWordPreview] = useState({ loading: false, text: '', error: '' });
+  useEffect(() => {
+    let cancelled = false;
+    if (!document || !isDocxDocument(document)) {
+      setWordPreview({ loading: false, text: '', error: '' });
+      return () => { cancelled = true; };
+    }
+    setWordPreview({ loading: true, text: '', error: '' });
+    previewDocxText(document)
+      .then(text => { if (!cancelled) setWordPreview({ loading: false, text, error: '' }); })
+      .catch(error => { if (!cancelled) setWordPreview({ loading: false, text: '', error: error.message || 'Kunde inte förhandsvisa Word-dokumentet.' }); });
+    return () => { cancelled = true; };
+  }, [document]);
+
   if (!document) return null;
   const mime = documentMime(document);
   const isImage = mime.startsWith('image/');
   const isPdf = mime === 'application/pdf';
   const isText = mime.startsWith('text/');
-  const isOffice = mime.includes('word') || mime.includes('officedocument');
+  const isDocx = isDocxDocument(document);
+  const isLegacyDoc = isLegacyDocDocument(document);
   return <Modal title="Förhandsvisa dokument" onClose={onClose} wide>
     <div className="document-preview-head">
       <div><strong>{document.name}</strong><span>{document.kind || 'Dokument'}{document.label ? ` · ${document.label}` : ''}</span></div>
@@ -565,28 +1290,28 @@ function DocumentPreviewModal({ document, onClose }) {
     <div className="document-preview-frame">
       {isImage ? <img src={document.dataUrl} alt={document.name} /> : null}
       {isPdf || isText ? <iframe title={document.name} src={document.dataUrl} /> : null}
-      {isOffice ? <div className="document-preview-fallback"><FileText size={34}/><strong>Förhandsvisning beror på webbläsaren</strong><p>Word- och Office-filer kan inte alltid visas direkt i webbläsaren. Filen är sparad och kan hämtas med knappen ovan.</p></div> : null}
+      {isDocx ? <div className="word-preview">{wordPreview.loading ? <p>Läser Word-dokument...</p> : wordPreview.error ? <div className="document-preview-fallback"><FileText size={34}/><strong>Kunde inte förhandsvisa Word-dokumentet</strong><p>{wordPreview.error}</p></div> : <pre>{wordPreview.text}</pre>}</div> : null}
+      {isLegacyDoc ? <div className="document-preview-fallback"><FileText size={34}/><strong>Äldre Word-format</strong><p>.doc-filer kan sparas och hämtas, men direkt förhandsvisning kräver att filen sparas som .docx.</p></div> : null}
       {!canInlinePreview(document) ? <div className="document-preview-fallback"><FileText size={34}/><strong>Ingen inbyggd förhandsvisning</strong><p>Den här filtypen kan sparas i Folk och hämtas, men webbläsaren kan inte visa den direkt.</p></div> : null}
     </div>
   </Modal>;
 }
 
-function DocumentShelf({ person, setPeople, title, subtitle, uploadLabel = 'Ladda upp fil' }) {
-  const documents = person.documents || [];
-  const [kind, setKind] = useState('');
+function DocumentCategorySection({ person, setPeople, category, documents, onPreview }) {
   const [label, setLabel] = useState('');
-  const [previewDocument, setPreviewDocument] = useState(null);
 
   const handleUpload = async event => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const fileRecord = await readFileAsDataUrl(file);
+    const fileRecord = await readAllowedDocumentAsDataUrl(file);
+    if (!fileRecord) return;
+    const customTitle = label.trim();
+    const description = category.fixedLabel ? category.fixedLabel + (customTitle ? ': ' + customTitle : '') : customTitle;
     setPeople(prev => prev.map(current => current.id === person.id ? applyDocumentUpload(current, fileRecord, {
-      kind: kind.trim() || 'Dokument',
-      label,
+      kind: category.kind,
+      label: description,
       source: 'Medarbetare',
     }) : current));
-    setKind('');
     setLabel('');
     event.target.value = '';
   };
@@ -598,27 +1323,67 @@ function DocumentShelf({ person, setPeople, title, subtitle, uploadLabel = 'Ladd
     }) : current));
   };
 
-  return <section className="document-section">
-    <div className="panel-head document-section-head"><div><h2>{title}</h2>{subtitle ? <p>{subtitle}</p> : null}</div></div>
-    <div className="document-list">
-      {documents.length ? documents.map(doc => <div className="document-row" key={doc.id}>
+  const isMissingRequired = category.required && documents.length === 0;
+
+  return <article className="document-category">
+    <div className="document-category-head">
+      <div>
+        <h3>{category.title}{category.required ? <span className="doc-required-label">Obligatorisk</span> : null}</h3>
+        <p>{isMissingRequired ? 'Finns ej.' : category.description}</p>
+      </div>
+      <span className={documents.length ? 'doc-status ok' : (category.required ? 'doc-status required' : 'doc-status missing')}>{documents.length ? 'Finns' : (category.required ? 'Finns ej' : 'Saknas')}</span>
+    </div>
+    <div className="document-category-list">
+      {documents.length ? documents.map(doc => <div className="document-row compact" key={doc.id}>
         <div className="document-row-main">
-          <strong>{doc.name}</strong>
-          <span>{doc.kind}{doc.label ? ` · ${doc.label}` : ''}</span>
+          <span className="document-file-name">{doc.name}</span>
+          <span><em>Filtitel</em>{doc.label || category.emptyLabel}</span>
           <small>{doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString('sv-SE') : 'Okänt datum'}</small>
         </div>
         <div className="document-row-actions">
-          <button type="button" className="secondary small" onClick={() => setPreviewDocument(doc)}><FileText size={15}/>Visa</button>
-          <a className="secondary small" href={doc.dataUrl} download={makeDocumentDownloadName(doc)}><Download size={15}/>Hämta</a>
-          <button type="button" className="secondary small danger danger-compact" onClick={() => removeDocument(doc.id)}><Trash2 size={14}/>Ta bort</button>
+          <button type="button" className="secondary small icon-only" aria-label="Visa dokument" title="Visa" onClick={() => onPreview(doc)}><FileText size={15}/></button>
+          <a className="secondary small icon-only" aria-label="Hämta dokument" title="Hämta" href={doc.dataUrl} download={makeDocumentDownloadName(doc)}><Download size={15}/></a>
+          <button type="button" className="secondary small danger danger-compact icon-only" aria-label="Ta bort dokument" title="Ta bort" onClick={() => removeDocument(doc.id)}><Trash2 size={14}/></button>
         </div>
-      </div>) : <div className="empty-state">Inga uppladdade dokument ännu.</div>}
+      </div>) : <div className="document-empty-row">Ingen fil uppladdad.</div>}
     </div>
-    <div className="document-upload-grid">
-      <label>Dokumenttyp<input value={kind} onChange={e => setKind(e.target.value)} placeholder="CV, anställningsavtal, intyg..." /></label>
-      <label>Benämning<input value={label} onChange={e => setLabel(e.target.value)} placeholder="Kort beskrivning eller version" /></label>
+    <div className="document-category-upload">
+      <label><span>{category.labelTitle}</span><input value={label} onChange={e => setLabel(e.target.value)} placeholder={category.placeholder} /></label>
+      <label className="secondary file-button document-upload-button"><Upload size={16}/>{category.uploadLabel}<input type="file" accept={acceptedDocumentAccept} onChange={handleUpload} /></label>
     </div>
-    <label className="secondary file-button document-upload-button"><Upload size={16}/>{uploadLabel}<input type="file" onChange={handleUpload} /></label>
+  </article>;
+}
+
+function DocumentShelf({ person, setPeople, title, subtitle }) {
+  const documents = normalizeDocuments(person.documents || []);
+  const [previewDocument, setPreviewDocument] = useState(null);
+  const isLabelMatch = (document, needle) => String(document.label || document.name || '').toLocaleLowerCase('sv').includes(needle);
+  const categoryDocuments = category => documents.filter(document => {
+    if (category.matchLabel) return documentKindMatches(document, category.kind) && isLabelMatch(document, category.matchLabel);
+    if (category.kind === 'Övrigt') return documentKindMatches(document, 'Övrigt') && !isLabelMatch(document, 'tystnadsplikt') && !isLabelMatch(document, 'checklista');
+    return documentKindMatches(document, category.kind);
+  });
+  const categories = [
+    { id: 'cv', kind: 'CV', title: 'CV', description: 'Uppladdat CV för medarbetaren.', labelTitle: 'Filtitel', placeholder: 'Exempel: CV 2026', uploadLabel: 'Ladda upp CV', emptyLabel: 'CV', required: true },
+    { id: 'agreement', kind: 'Anställningsavtal', title: 'Anställningsavtal', description: 'Avtal och signerade anställningshandlingar.', labelTitle: 'Filtitel', placeholder: 'Exempel: Signerat avtal', uploadLabel: 'Ladda upp avtal', emptyLabel: 'Anställningsavtal', required: true },
+    { id: 'register', kind: 'Registerutdrag', title: 'Registerutdrag', description: 'Registerutdrag och kontrollunderlag.', labelTitle: 'Filtitel', placeholder: 'Exempel: Utdrag 2026', uploadLabel: 'Ladda upp utdrag', emptyLabel: 'Registerutdrag', required: true },
+    { id: 'confidentiality', kind: 'Övrigt', matchLabel: 'tystnadsplikt', fixedLabel: 'Tystnadsplikt', title: 'Tystnadsplikt', description: 'Dokument för tystnadsplikt.', labelTitle: 'Filtitel', placeholder: 'Exempel: Signerad tystnadsplikt', uploadLabel: 'Ladda upp tystnadsplikt', emptyLabel: 'Tystnadsplikt', required: true },
+    { id: 'checklist', kind: 'Övrigt', matchLabel: 'checklista', fixedLabel: 'Checklista', title: 'Checklista', description: 'Checklistadokument från rekrytering eller anställning.', labelTitle: 'Filtitel', placeholder: 'Exempel: Checklista signerad', uploadLabel: 'Ladda upp checklista', emptyLabel: 'Checklista', required: true },
+    { id: 'other', kind: 'Övrigt', title: 'Övriga dokument', description: 'Frivilliga dokument som inte hör till någon av de fasta filboxarna.', labelTitle: 'Filtitel', placeholder: 'Exempel: Diplom, intyg eller delegation', uploadLabel: 'Ladda upp övrigt', emptyLabel: 'Övrigt dokument', requiresLabel: true },
+  ];
+
+  return <section className="document-section">
+    <div className="panel-head document-section-head"><div><h2>{title}</h2>{subtitle ? <p>{subtitle}</p> : null}</div></div>
+    <div className="document-category-grid">
+      {categories.map(category => <DocumentCategorySection
+        key={category.id}
+        person={person}
+        setPeople={setPeople}
+        category={category}
+        documents={categoryDocuments(category)}
+        onPreview={setPreviewDocument}
+      />)}
+    </div>
     <DocumentPreviewModal document={previewDocument} onClose={() => setPreviewDocument(null)} />
   </section>;
 }
@@ -660,7 +1425,7 @@ function NotesPanel({ person, setPeople, actor }) {
   </section>;
 }
 
-function EmployeeDetail({ person, setPeople, actor, onClose, onEdit }) {
+function EmployeeDetail({ person, setPeople, actor, onClose, onEdit, onArchive }) {
   // För en färdig medarbetare visas profilvyn med samma data som i redigeringen plus dokumentlista.
   const [profileTab, setProfileTab] = useState('profile');
   const duration = employmentDuration(person);
@@ -674,7 +1439,7 @@ function EmployeeDetail({ person, setPeople, actor, onClose, onEdit }) {
       <div className="profile-head">
         <Avatar person={person} large />
         <div><h2>{person.name}</h2><p>{person.role || '-'} · {person.unit || '-'}</p></div>
-        <button className="secondary small" onClick={onEdit}><Pencil size={15}/>Redigera</button>
+        <div className="profile-actions"><button className="secondary small" onClick={onEdit}><Pencil size={15}/>Redigera</button>{person.status !== 'Arkiverad' ? <button type="button" className="icon-btn danger danger-icon" title={`Ta bort ${person.name}`} aria-label={`Ta bort ${person.name}`} onClick={() => onArchive(person)}><Trash2 size={13}/></button> : null}</div>
       </div>
       <div className="profile-grid">
         <div><label>Personnummer</label><b>{person.personalNumber || '-'}</b></div>
@@ -683,15 +1448,15 @@ function EmployeeDetail({ person, setPeople, actor, onClose, onEdit }) {
         <div><label>E-post</label><b>{person.email}</b></div>
         <div><label>Roll</label><b>{person.role || '-'}</b></div>
         <div><label>Grupp</label><b>{person.unit || '-'}</b></div>
+        <div><label>Enheter</label><b>{Array.isArray(person.assignedUnits) && person.assignedUnits.length ? person.assignedUnits.join(', ') : (person.unit || '-')}</b></div>
         <div><label>Typ</label><b>{person.group || '-'}</b></div>
         <div><label>Utbildning</label><b>{person.education || '-'}</b></div>
         <div><label>Anställningstyp</label><b>{person.employmentType || '-'}</b></div>
         <div><label>Tjänstgöringsgrad</label><b>{person.rate} %</b></div>
         <div><label>Anställningsstart</label><b>{person.employmentDate ? new Date(person.employmentDate).toLocaleDateString('sv-SE') : (person.start ? new Date(person.start).toLocaleDateString('sv-SE') : '-')}</b></div>
-        <div><label>Provanställning start</label><b>{person.probationStart ? new Date(person.probationStart).toLocaleDateString('sv-SE') : '-'}</b></div>
-        <div><label>Provanställning slut</label><b>{person.probationEnd ? new Date(person.probationEnd).toLocaleDateString('sv-SE') : '-'}</b></div>
-        <div><label>Skapad av</label><b>{formatAudit(person.createdBy, person.createdAt)}</b></div>
-        <div><label>Anställd av</label><b>{formatAudit(person.hiredBy, person.hiredAt)}</b></div>
+        {person.hasProbation ? <div><label>Provanställning slut</label><b>{person.probationEnd ? new Date(person.probationEnd).toLocaleDateString('sv-SE') : '-'}</b></div> : null}
+        <div><label>Skapad av</label><b>{formatAudit(person.profileCreatedBy || person.createdBy || person.hiredBy, person.profileCreatedAt || person.createdAt || person.hiredAt)}</b></div>
+        <div className="profile-empty-cell" aria-hidden="true" />
         <div className="employment-counter"><label>Anställd i</label><b>{duration ? duration.days.toLocaleString('sv-SE') : '-'}</b><small>{duration ? `dagar sedan ${formatDate(duration.startValue)}` : 'Anställningsstart saknas'}</small></div>
       </div>
     </> : null}
@@ -699,7 +1464,7 @@ function EmployeeDetail({ person, setPeople, actor, onClose, onEdit }) {
       person={person}
       setPeople={setPeople}
       title="Dokument"
-      subtitle="CV, anställningsavtal, registerutdrag, intyg och andra filer samlas här."
+      subtitle="CV, anställningsavtal, registerutdrag och övriga dokument samlas här."
     /> : null}
     {profileTab === 'notes' ? <NotesPanel person={person} setPeople={setPeople} actor={actor} /> : null}
   </Modal>;
@@ -720,7 +1485,7 @@ function EmployeeEditForm({ person, groups, groupTypes, onClose, onSave }) {
     employmentType: person.employmentType || '',
     rate: person.rate ?? 100,
     employmentDate: person.employmentDate || person.start || '',
-    probationStart: person.probationStart || '',
+    hasProbation: Boolean(person.hasProbation || person.probationEnd),
     probationEnd: person.probationEnd || '',
     start: person.start || '',
   }));
@@ -742,8 +1507,9 @@ function EmployeeEditForm({ person, groups, groupTypes, onClose, onSave }) {
       employmentType: form.employmentType.trim(),
       rate: Number(form.rate),
       employmentDate: form.employmentDate,
-      probationStart: form.probationStart,
-      probationEnd: form.probationEnd,
+      hasProbation: Boolean(form.hasProbation),
+      probationStart: '',
+      probationEnd: form.hasProbation ? form.probationEnd : '',
       start: form.start || form.employmentDate,
     });
   };
@@ -779,23 +1545,23 @@ function EmployeeEditForm({ person, groups, groupTypes, onClose, onSave }) {
       </div>
       <div className="form-grid">
         <label>Anställningsstart<input type="date" value={form.employmentDate} onChange={e => update('employmentDate', e.target.value)} /></label>
-        <label>Provanställning start<input type="date" value={form.probationStart} onChange={e => update('probationStart', e.target.value)} /></label>
+        <label className="checkbox-field"><input type="checkbox" checked={form.hasProbation} onChange={e => update('hasProbation', e.target.checked)} />Provanställning</label>
       </div>
       <div className="form-grid">
-        <label>Provanställning slut<input type="date" value={form.probationEnd} onChange={e => update('probationEnd', e.target.value)} /></label>
+        {form.hasProbation ? <label>Provanställning slut<input type="date" value={form.probationEnd} onChange={e => update('probationEnd', e.target.value)} /></label> : <div />}
         <label>Startdatum i systemet<input type="date" value={form.start} onChange={e => update('start', e.target.value)} /></label>
       </div>
       <div className="form-actions"><button type="button" className="secondary" onClick={onClose}>Avbryt</button><button className="primary">Spara ändringar</button></div>
     </form>
   </Modal>;
 }
-function PersonDetail({ person, setPeople, groups, groupTypes, currentUser, onClose }) {
+function PersonDetail({ person, setPeople, groups, groupTypes, currentUser, onClose, onArchive }) {
   // Ett enda valpunkt för medarbetarprofiler.
   const [editing, setEditing] = useState(false);
   if (editing) {
     return <EmployeeEditForm person={person} groups={groups} groupTypes={groupTypes} onClose={() => setEditing(false)} onSave={updated => { setPeople(prev => prev.map(current => current.id === updated.id ? normalizePerson(updated) : current)); setEditing(false); }} />;
   }
-  return <EmployeeDetail person={person} setPeople={setPeople} actor={currentUser} onClose={onClose} onEdit={() => setEditing(true)} />;
+  return <EmployeeDetail person={person} setPeople={setPeople} actor={currentUser} onClose={onClose} onEdit={() => setEditing(true)} onArchive={onArchive} />;
 }
 
 function TypeCheckboxes({ selected, onChange }) {
@@ -939,6 +1705,7 @@ function ForcePasswordChange({ currentUser, admins, setAdmins, onCurrentUserUpda
 }
 function Admin({ groups, people, admins, setAdmins, currentUser, onCurrentUserUpdate, colorTheme, setColorTheme }) {
   // Administrationsvyn styr behöriga användare och grundregler för systemet.
+  const [activeAdminTab, setActiveAdminTab] = useState('overview');
   const [adminName, setAdminName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
   const [temporaryPassword, setTemporaryPassword] = useState('');
@@ -1011,19 +1778,31 @@ function Admin({ groups, people, admins, setAdmins, currentUser, onCurrentUserUp
     setPasswordMessage('Lösenordet är uppdaterat.');
   };
 
+  const adminTabs = [
+    { id: 'overview', label: 'Översikt' },
+    { id: 'users', label: 'Användare' },
+    { id: 'appearance', label: 'Utseende' },
+    { id: 'security', label: 'Lösenord' },
+  ];
+
   return <>
     <PageHeader title="Administration" subtitle="Systemets inställningar och behörigheter" />
-    <section className="panel theme-panel">
-      <div className="panel-head"><div><h2>Färgskala</h2><p>Välj färgprofil för hela Folk.</p></div><span className="tag">{colorThemes.find(theme => theme.id === colorTheme)?.name}</span></div>
-      <div className="theme-options">
-        {colorThemes.map(theme => <button type="button" key={theme.id} className={colorTheme === theme.id ? "theme-option selected" : "theme-option"} aria-pressed={colorTheme === theme.id} onClick={() => setColorTheme(theme.id)}>
-          <span className="theme-swatches" aria-hidden="true">{theme.colors.map(color => <i key={color} style={{ backgroundColor: color }} />)}</span>
-          <span><strong>{theme.name}</strong><small>{theme.description}</small></span>
-          <span className="theme-check">{colorTheme === theme.id ? "Vald" : "Välj"}</span>
-        </button>)}
-      </div>
+    <section className="admin-tabs" role="tablist" aria-label="Administrationsflikar">
+      {adminTabs.map(tab => <button type="button" key={tab.id} role="tab" aria-selected={activeAdminTab === tab.id} className={activeAdminTab === tab.id ? 'active' : ''} onClick={() => setActiveAdminTab(tab.id)}>{tab.label}</button>)}
     </section>
-    <section className="panel admin-users">
+    {activeAdminTab === 'overview' ? <div className="admin-overview">
+      <section className="admin-summary-grid">
+        <div><Users/><span><b>{admins.length}</b>Användare</span></div>
+        <div><Shapes/><span><b>{groups.length}</b>Grupper</span></div>
+        <div><ShieldCheck/><span><b>{people.length}</b>Profiler i systemet</span></div>
+      </section>
+      <div className="admin-list">
+        <section><ShieldCheck/><div><h3>Behörigheter</h3><p>Admin ser alla grupper och medarbetare. Användare ser bara medarbetare i tilldelade grupper.</p></div><span className="tag">Aktivt</span></section>
+        <section><Shapes/><div><h3>Organisation</h3><p>{groups.length} grupper är tillgängliga för behörighetsstyrning.</p></div><span className="tag">Synkroniserat</span></section>
+        <section><Settings/><div><h3>Färgskala</h3><p>Aktiv profil är {colorThemes.find(theme => theme.id === colorTheme)?.name}.</p></div><span className="tag">Vald</span></section>
+      </div>
+    </div> : null}
+    {activeAdminTab === 'users' ? <section className="panel admin-users">
       <div className="panel-head"><div><h2>Användare</h2><p>Admin skapar konto, tilldelar grupper och anger ett tillfälligt lösenord som måste bytas vid första inloggning.</p></div><span className="tag">{admins.length} användare</span></div>
       {canManageUsers ? <form className="admin-user-form" onSubmit={addAdmin}>
         <label>Namn<input value={adminName} onChange={e => setAdminName(e.target.value)} placeholder="Förnamn Efternamn" required /></label>
@@ -1046,8 +1825,18 @@ function Admin({ groups, people, admins, setAdmins, currentUser, onCurrentUserUp
           </div>;
         })}
       </div>
-    </section>
-    <section className="panel password-panel">
+    </section> : null}
+    {activeAdminTab === 'appearance' ? <section className="panel theme-panel">
+      <div className="panel-head"><div><h2>Färgskala</h2><p>Välj färgprofil för hela Folk.</p></div><span className="tag">{colorThemes.find(theme => theme.id === colorTheme)?.name}</span></div>
+      <div className="theme-options">
+        {colorThemes.map(theme => <button type="button" key={theme.id} className={colorTheme === theme.id ? "theme-option selected" : "theme-option"} aria-pressed={colorTheme === theme.id} onClick={() => setColorTheme(theme.id)}>
+          <span className="theme-swatches" aria-hidden="true">{theme.colors.map(color => <i key={color} style={{ backgroundColor: color }} />)}</span>
+          <span><strong>{theme.name}</strong><small>{theme.description}</small></span>
+          <span className="theme-check">{colorTheme === theme.id ? "Vald" : "Välj"}</span>
+        </button>)}
+      </div>
+    </section> : null}
+    {activeAdminTab === 'security' ? <section className="panel password-panel">
       <div className="panel-head"><div><h2>Byt lösenord</h2><p>Uppdatera lösenordet för ditt konto.</p></div></div>
       <form className="password-form" onSubmit={changePassword}>
         <label>Nuvarande lösenord<input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} required /></label>
@@ -1056,18 +1845,36 @@ function Admin({ groups, people, admins, setAdmins, currentUser, onCurrentUserUp
         <button className="primary">Spara lösenord</button>
       </form>
       {passwordMessage ? <div className={passwordMessage.includes('uppdaterat') ? 'password-message success' : 'password-message'}>{passwordMessage}</div> : null}
-    </section>
-    <div className="admin-list">
-      <section><ShieldCheck/><div><h3>Behörigheter</h3><p>Admin ser alla grupper och medarbetare. Användare ser bara medarbetare i tilldelade grupper.</p></div><span className="tag">Aktivt</span></section>
-      <section><Shapes/><div><h3>Organisation</h3><p>{groups.length} grupper.</p></div><span className="tag">Synkroniserat</span></section>
-    </div>
+    </section> : null}
   </>;
+}
+
+function SearchFilterPanel({ filterPanelTab, setFilterPanelTab, peopleGroupOptions, groupFilter, toggleGroupFilter, searchableFields, dateFrom, setDateFrom, dateTo, setDateTo, sortField, setSortField, sortDirection, setSortDirection, hasPeopleFilters, clearFilters, searchColumnKeys, setSearchColumnKeys, availableSearchColumns, toggleSearchColumn }) {
+  const showColumns = filterPanelTab === 'columns';
+  const showFilters = !showColumns;
+  return <div className="people-filter-shell embedded-filter-shell">
+    <div className="filter-tabs" role="tablist" aria-label="Sökfilter">
+      <button type="button" className={showFilters ? 'active' : ''} aria-selected={showFilters} onClick={() => setFilterPanelTab('filters')}>Filter och sortering</button>
+      <button type="button" className={showColumns ? 'active' : ''} aria-selected={showColumns} onClick={() => setFilterPanelTab('columns')}>Kolumner i listan</button>
+    </div>
+    {showFilters ? <div className="filter-grid-panel">
+      <section className="filter-card filter-card-wide"><div className="filter-card-head"><strong>Grupper</strong><span>Visa en eller flera grupper</span></div><div className="group-multi-filter"><div>{peopleGroupOptions.map(option => <label key={option}><input type="checkbox" checked={groupFilter.includes(option)} onChange={() => toggleGroupFilter(option)} />{option}</label>)}</div></div></section>
+      <section className="filter-card"><div className="filter-card-head"><strong>Datum</strong><span>Välj datum från och till</span></div><div className="filter-two"><label><span>Från</span><input type="date" value={dateFrom} max={dateTo || undefined} onChange={e => setDateFrom(e.target.value)} /></label><label><span>Till</span><input type="date" value={dateTo} min={dateFrom || undefined} onChange={e => setDateTo(e.target.value)} /></label></div></section>
+      <section className="filter-card"><div className="filter-card-head"><strong>Sortering</strong><span>Styr ordning i resultatlistan</span></div><label><span>Sortera på</span><select value={sortField} onChange={e => setSortField(e.target.value)}>{searchableFields.map(field => <option key={field.key} value={field.key}>{field.label}</option>)}</select></label><label><span>Ordning</span><select value={sortDirection} onChange={e => setSortDirection(e.target.value)}><option value="asc">Stigande</option><option value="desc">Fallande</option></select></label></section>
+      <section className="filter-card filter-actions-card"><div className="filter-card-head"><strong>Åtgärder</strong><span>Rensa alla aktiva villkor</span></div><button type="button" className="secondary filter-clear" disabled={!hasPeopleFilters} onClick={clearFilters}>Rensa allt</button></section>
+    </div> : <div className="column-picker-panel">
+      <div className="column-picker-head"><span>{availableSearchColumns.filter(field => searchColumnKeys.includes(field.key)).length} kolumner visas i sökresultatet och PDF</span><button type="button" className="secondary small" onClick={() => setSearchColumnKeys(defaultSearchColumnKeys)}>Standard</button></div>
+      <div className="column-picker-grid">{availableSearchColumns.map(field => <label key={field.key}><input type="checkbox" checked={searchColumnKeys.includes(field.key)} onChange={() => toggleSearchColumn(field.key)} />{field.label}</label>)}</div>
+    </div>}
+  </div>;
 }
 
 function App() {
   // Tillståndet speglas mot backend/SQLite och använder localStorage som fallback för session och offline-start.
   const seed = loadState();
-  const [active, setActive] = useState('Översikt');
+  const savedUi = loadUiState();
+  const [active, setActive] = useState(savedUi.active);
+  const [peopleTab, setPeopleTab] = useState(savedUi.peopleTab);
   const [people, setPeople] = useState(seed.people);
   const [groups, setGroups] = useState(seed.groups);
   const [groupTypes, setGroupTypes] = useState(seed.groupTypes);
@@ -1083,35 +1890,57 @@ function App() {
   });
   const [backendLoading, setBackendLoading] = useState(true);
   const [backendError, setBackendError] = useState('');
+  const saveQueueRef = useRef(Promise.resolve());
   const [colorTheme, setColorTheme] = useState(seed.colorTheme);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(savedUi.query);
   const [newEmployeeOpen, setNewEmployeeOpen] = useState(false);
+  const [newRecruitmentOpen, setNewRecruitmentOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [menu, setMenu] = useState(false);
-  const [groupFilter, setGroupFilter] = useState("Alla");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [groupFilter, setGroupFilter] = useState(savedUi.groupFilter);
+  const [dateFrom, setDateFrom] = useState(savedUi.dateFrom);
+  const [dateTo, setDateTo] = useState(savedUi.dateTo);
+  const [sortField, setSortField] = useState(savedUi.sortField);
+  const [sortDirection, setSortDirection] = useState(savedUi.sortDirection);
+  const [filterPanelTab, setFilterPanelTab] = useState(savedUi.filterPanelTab);
+  const [searchColumnKeys, setSearchColumnKeys] = useState(savedUi.searchColumnKeys);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [overviewMode, setOverviewMode] = useState('default');
+  const [overviewMode, setOverviewMode] = useState(savedUi.overviewMode);
   const visiblePeople = useMemo(() => filterPeopleForUser(people, currentUser), [people, currentUser]);
   const visibleGroups = useMemo(() => filterGroupsForUser(groups, currentUser), [groups, currentUser]);
+  const activeVisiblePeople = useMemo(() => visiblePeople.filter(person => person.status === 'Anställd'), [visiblePeople]);
+  const recruitmentVisiblePeople = useMemo(() => visiblePeople.filter(person => person.status === 'Rekrytering'), [visiblePeople]);
+  const archivedVisiblePeople = useMemo(() => visiblePeople.filter(person => person.status === 'Arkiverad'), [visiblePeople]);
   const navigationItems = useMemo(() => [
     ['Översikt', LayoutDashboard],
     ['Medarbetare', Users],
+    ['Rekrytering', UserPlus],
     ['Grupper', Shapes],
+    ['Arkiv', Archive],
     ...(userCanSeeAll(currentUser) ? [['Administration', Settings]] : []),
   ], [currentUser]);
-  const peopleGroupOptions = ["Alla", ...Array.from(new Set([...visibleGroups.map(groupLabel), ...visiblePeople.map(person => person.unit).filter(Boolean)]))];
-  const hasPeopleFilters = Boolean(query.trim() || groupFilter !== "Alla" || dateFrom || dateTo);
+  const peopleGroupOptions = Array.from(new Set([...visibleGroups.map(groupLabel), ...activeVisiblePeople.map(person => person.unit).filter(Boolean)])).filter(Boolean);
+  const searchableFields = useMemo(() => discoverPersonFields(activeVisiblePeople), [activeVisiblePeople]);
+  const availableSearchColumns = searchableFields.filter(field => !['name', 'firstName', 'lastName'].includes(field.key));
+  const availableSearchColumnKeys = new Set(availableSearchColumns.map(field => field.key));
+  const effectiveSearchColumnKeys = searchColumnKeys.filter((key, index, list) => availableSearchColumnKeys.has(key) && list.indexOf(key) === index);
+  const toggleSearchColumn = key => setSearchColumnKeys(prev => prev.includes(key) ? prev.filter(value => value !== key) : [...prev, key]);
+  const hasPeopleFilters = Boolean(query.trim() || groupFilter.length || dateFrom || dateTo || sortField !== "name" || sortDirection !== "asc");
+  const toggleGroupFilter = groupName => setGroupFilter(prev => prev.includes(groupName) ? prev.filter(name => name !== groupName) : [...prev, groupName]);
+
   const navigateTo = label => {
     setActive(label);
+    if (label !== 'Medarbetare') setPeopleTab('list');
     setOverviewMode('default');
     setMenu(false);
     setFiltersOpen(false);
+    setFilterPanelTab("filters");
     setQuery("");
-    setGroupFilter("Alla");
+    setGroupFilter([]);
     setDateFrom("");
     setDateTo("");
+    setSortField("name");
+    setSortDirection("asc");
   };
 
 
@@ -1126,7 +1955,9 @@ function App() {
         const nextAdmins = ensureSeedUsers(source.admins || []);
         const legacyGroups = Array.isArray(source.groups) ? source.groups : [];
         const unitToGroupType = new Map(legacyGroups.map(group => [typeof group === 'string' ? group : group?.name || group?.unit || '', typeof group === 'string' ? '' : group?.type || group?.groupType || '']).filter(([unit]) => Boolean(unit)));
-        setPeople(normalizePeople(Array.isArray(source.people) ? source.people : [], unitToGroupType));
+        const sourcePeople = Array.isArray(source.people) ? source.people : [];
+        const mergedPeople = shouldMigrateLocal ? sourcePeople : mergeLocalRecruitment(sourcePeople, localBackup.people);
+        setPeople(normalizePeople(mergedPeople, unitToGroupType));
         setGroups(normalizeGroups(Array.isArray(source.groups) && source.groups.length ? source.groups : initialGroups));
         setGroupTypes(groupCategoryOptions);
         setAdmins(nextAdmins);
@@ -1153,8 +1984,16 @@ function App() {
     if (backendLoading) return;
     const state = { people, groups, groupTypes, admins, colorTheme };
     localStorage.setItem(storageKey, JSON.stringify(state));
-    saveBackendState(state).catch(() => setBackendError('Kunde inte spara till backend. Kontrollera att servern kör.'));
+    saveQueueRef.current = saveQueueRef.current
+      .catch(() => {})
+      .then(() => saveBackendState(state))
+      .catch(() => setBackendError('Kunde inte spara till backend. Kontrollera att servern kör.'));
   }, [people, groups, groupTypes, admins, colorTheme, backendLoading]);
+
+  useEffect(() => {
+    const uiState = { active, peopleTab, overviewMode, query, groupFilter, dateFrom, dateTo, sortField, sortDirection, filterPanelTab, searchColumnKeys };
+    localStorage.setItem(`${storageKey}-ui`, JSON.stringify(uiState));
+  }, [active, peopleTab, overviewMode, query, groupFilter, dateFrom, dateTo, sortField, sortDirection, filterPanelTab, searchColumnKeys]);
 
   const login = user => {
     setCurrentUser(user);
@@ -1171,16 +2010,52 @@ function App() {
     localStorage.setItem(`${storageKey}-session`, user.email);
   };
 
+  const clearPeopleFilters = () => {
+    setQuery("");
+    setGroupFilter([]);
+    setDateFrom("");
+    setDateTo("");
+    setSortField("name");
+    setSortDirection("asc");
+  };
+
+  const searchFilterPanel = <SearchFilterPanel filterPanelTab={filterPanelTab} setFilterPanelTab={setFilterPanelTab} peopleGroupOptions={peopleGroupOptions} groupFilter={groupFilter} toggleGroupFilter={toggleGroupFilter} searchableFields={searchableFields} dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo} sortField={sortField} setSortField={setSortField} sortDirection={sortDirection} setSortDirection={setSortDirection} hasPeopleFilters={hasPeopleFilters} clearFilters={clearPeopleFilters} searchColumnKeys={effectiveSearchColumnKeys} setSearchColumnKeys={setSearchColumnKeys} availableSearchColumns={availableSearchColumns} toggleSearchColumn={toggleSearchColumn} />;
+
+  const searchResults = <PeopleSearchResults people={activeVisiblePeople} query={query} groupFilter={groupFilter} dateFrom={dateFrom} dateTo={dateTo} sortField={sortField} sortDirection={sortDirection} searchColumnKeys={effectiveSearchColumnKeys} setSelectedId={setSelectedId} />;
+
+  const archivePerson = person => {
+    if (!person || person.status === 'Arkiverad') return;
+    const confirmed = window.confirm(`Ta bort ${person.name}? Personen flyttas till Arkiv och kan inte längre ses i aktiva medarbetarlistan.`);
+    if (!confirmed) return;
+    setPeople(prev => prev.map(current => current.id === person.id ? normalizePerson({
+      ...current,
+      status: 'Arkiverad',
+      archivedAt: new Date().toISOString(),
+      archivedBy: currentUser,
+    }) : current));
+    setSelectedId(null);
+  };
+
+  const deleteArchivedPerson = person => {
+    if (!person || person.status !== 'Arkiverad') return;
+    const confirmed = window.confirm(`Radera ${person.name} permanent? Det här går inte att ångra.`);
+    if (!confirmed) return;
+    setPeople(prev => prev.filter(current => current.id !== person.id));
+    setSelectedId(current => current === person.id ? null : current);
+  };
+
   const selectedPerson = useMemo(() => visiblePeople.find(person => person.id === selectedId) || null, [visiblePeople, selectedId]);
 
   const page = useMemo(() => {
-    if (hasPeopleFilters) return <PeopleSearchResults people={visiblePeople} groups={visibleGroups} query={query} groupFilter={groupFilter} dateFrom={dateFrom} dateTo={dateTo} setSelectedId={setSelectedId} />;
-    if (active === 'Översikt') return <Overview people={visiblePeople} groups={visibleGroups} mode={overviewMode} onNavigate={navigateTo} onShowProbation={() => setOverviewMode('probation')} setSelectedId={setSelectedId} />;
-    if (active === 'Medarbetare') return <Employees people={visiblePeople} groups={visibleGroups} query={query} setSelectedId={setSelectedId} onAdd={() => setNewEmployeeOpen(true)} onOpenFilters={() => setFiltersOpen(true)} />;
-    if (active === 'Grupper') return <Groups groups={visibleGroups} setGroups={setGroups} people={visiblePeople} setPeople={setPeople} canManage={userCanSeeAll(currentUser)} />;
+    if (hasPeopleFilters && !['Medarbetare', 'Rekrytering', 'Arkiv', 'Administration'].includes(active)) return searchResults;
+    if (active === 'Översikt') return <Overview people={activeVisiblePeople} groups={visibleGroups} mode={overviewMode} onNavigate={navigateTo} onShowProbation={() => setOverviewMode('probation')} setSelectedId={setSelectedId} />;
+    if (active === 'Medarbetare') return <Employees people={activeVisiblePeople} groups={visibleGroups} query={query} setSelectedId={setSelectedId} onAdd={() => setNewEmployeeOpen(true)} onArchive={archivePerson} peopleTab={peopleTab} setPeopleTab={setPeopleTab} searchPanel={searchFilterPanel} searchResults={searchResults} hasPeopleFilters={hasPeopleFilters} />;
+    if (active === 'Rekrytering') return <Recruitment people={recruitmentVisiblePeople} groups={visibleGroups} groupTypes={groupTypes} setPeople={setPeople} actor={currentUser} onAdd={() => setNewRecruitmentOpen(true)} />;
+    if (active === 'Arkiv') return <ArchiveView people={archivedVisiblePeople} setSelectedId={setSelectedId} onDelete={deleteArchivedPerson} />;
+    if (active === 'Grupper') return <Groups groups={visibleGroups} setGroups={setGroups} people={activeVisiblePeople} setPeople={setPeople} canManage={userCanSeeAll(currentUser)} />;
     if (active === 'Administration' && userCanSeeAll(currentUser)) return <Admin groups={groups} people={people} admins={admins} setAdmins={setAdmins} currentUser={currentUser} onCurrentUserUpdate={updateCurrentUser} colorTheme={colorTheme} setColorTheme={setColorTheme} />;
-    return <Overview people={visiblePeople} groups={visibleGroups} mode={overviewMode} onNavigate={navigateTo} onShowProbation={() => setOverviewMode('probation')} setSelectedId={setSelectedId} />;
-  }, [active, visiblePeople, visibleGroups, people, groups, groupTypes, query, groupFilter, dateFrom, dateTo, hasPeopleFilters, admins, currentUser, colorTheme, overviewMode]);
+    return <Overview people={activeVisiblePeople} groups={visibleGroups} mode={overviewMode} onNavigate={navigateTo} onShowProbation={() => setOverviewMode('probation')} setSelectedId={setSelectedId} />;
+  }, [active, peopleTab, activeVisiblePeople, recruitmentVisiblePeople, archivedVisiblePeople, visiblePeople, visibleGroups, people, groups, groupTypes, query, groupFilter, dateFrom, dateTo, sortField, sortDirection, searchColumnKeys, effectiveSearchColumnKeys, filterPanelTab, hasPeopleFilters, admins, currentUser, colorTheme, overviewMode]);
 
   if (backendLoading) {
     return <div className="login-shell"><section className="login-panel"><div className="login-brand"><strong>Folk<span>.</span></strong><small>Medarbetarkoll</small></div><p className="loading-state">Laddar data från backend...</p></section></div>;
@@ -1204,20 +2079,15 @@ function App() {
       <header className="topbar">
         <button className="mobile-menu" aria-label="Öppna meny" onClick={() => setMenu(!menu)}><Menu/></button>
         <div className="search"><Search size={18}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Sök namn, roll, e-post, telefon, grupp eller typ"/></div>
-        <button className={hasPeopleFilters ? "secondary topbar-filter active" : "secondary topbar-filter"} aria-expanded={filtersOpen} onClick={() => setFiltersOpen(!filtersOpen)}><SlidersHorizontal size={17}/><span>Filter</span></button>
         <button className="user"><span>{userInitials(currentUser.name)}</span><b>{currentUser.name}</b></button>
         <button className="icon-btn" aria-label="Logga ut" onClick={logout}><LogOut size={19}/></button>
       </header>
-      {filtersOpen ? <div className="people-filter-bar">
-        <label><span>Grupp</span><select value={groupFilter} onChange={e => setGroupFilter(e.target.value)}>{peopleGroupOptions.map(option => <option key={option}>{option}</option>)}</select></label>
-        <label><span>Från och med</span><input type="date" value={dateFrom} max={dateTo || undefined} onChange={e => setDateFrom(e.target.value)} /></label>
-        <label><span>Till och med</span><input type="date" value={dateTo} min={dateFrom || undefined} onChange={e => setDateTo(e.target.value)} /></label>
-        <button className="secondary" disabled={!hasPeopleFilters} onClick={() => { setQuery(""); setGroupFilter("Alla"); setDateFrom(""); setDateTo(""); }}>Rensa allt</button>
-      </div> : null}
+      {filtersOpen && active !== 'Medarbetare' ? searchFilterPanel : null}
       <main>{backendError ? <div className="backend-alert">{backendError}</div> : null}{page}</main>
     </div>
     {newEmployeeOpen ? <Modal title="Lägg till medarbetare" onClose={() => setNewEmployeeOpen(false)}><EmployeeForm groups={visibleGroups} groupTypes={groupTypes} actor={currentUser} onClose={() => setNewEmployeeOpen(false)} onSave={person => { setPeople(prev => [...prev, person]); setNewEmployeeOpen(false); setActive('Medarbetare'); }} /></Modal> : null}
-    {selectedPerson ? <PersonDetail person={selectedPerson} setPeople={setPeople} groups={visibleGroups} groupTypes={groupTypes} currentUser={currentUser} onClose={() => setSelectedId(null)} /> : null}
+    {newRecruitmentOpen ? <Modal title="Lägg till person i rekrytering" onClose={() => setNewRecruitmentOpen(false)}><RecruitmentAddForm actor={currentUser} onClose={() => setNewRecruitmentOpen(false)} onSave={person => { setPeople(prev => [...prev, person]); setNewRecruitmentOpen(false); setActive('Rekrytering'); }} /></Modal> : null}
+    {selectedPerson ? <PersonDetail person={selectedPerson} setPeople={setPeople} groups={visibleGroups} groupTypes={groupTypes} currentUser={currentUser} onClose={() => setSelectedId(null)} onArchive={archivePerson} /> : null}
   </div>;
 }
 
