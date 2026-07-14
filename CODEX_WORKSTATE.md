@@ -38,13 +38,15 @@ scripts/folk-restart.sh
 scripts/folk-status.sh
 ```
 
-Backend kor normalt pa:
-
-- http://localhost:8020
-
 Frontend/Vite kor normalt pa:
 
 - http://localhost:5173
+
+Backend/API kor lokalt pa:
+
+- http://localhost:8020
+
+I systemd/dev-laget serverar backend inte frontend-HTML. Appen ska oppnas via frontendporten `5173`; port `8020` ar bara for API.
 
 Loggar finns lokalt i:
 

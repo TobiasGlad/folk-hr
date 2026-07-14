@@ -7,6 +7,8 @@ Type=simple
 WorkingDirectory=/srv/web-projects/folk-hr
 Environment=PATH=/home/tobias/.local/bin:/usr/local/bin:/usr/bin:/bin
 Environment=PORT=8020
+Environment=HOST=127.0.0.1
+Environment=SERVE_FRONTEND=false
 ExecStart=/home/tobias/.local/bin/npm run server
 Restart=always
 RestartSec=3

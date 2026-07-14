@@ -9,6 +9,8 @@ const dataDir = join(rootDir, 'data');
 const dbPath = join(dataDir, 'folk.db');
 const distDir = join(rootDir, 'dist');
 const port = Number(process.env.PORT || 8020);
+const host = process.env.HOST || '0.0.0.0';
+const serveFrontend = process.env.SERVE_FRONTEND !== 'false';
 
 const groupCategoryOptions = ['LSS', 'HVB', 'Skola', 'Verksamhet', 'Kontor'];
 const initialGroupTypes = groupCategoryOptions;
@@ -382,13 +384,18 @@ const server = createServer(async (req, res) => {
       sendJson(res, 404, { error: 'Not found' });
       return;
     }
+    if (!serveFrontend) {
+      sendJson(res, 404, { error: 'Frontend is served by Vite on port 5173' });
+      return;
+    }
     await serveStatic(req, res);
   } catch (error) {
     sendJson(res, 500, { error: error.message });
   }
 });
 
-server.listen(port, '0.0.0.0', () => {
-  console.log(`Folk. backend listening on http://localhost:${port}`);
+server.listen(port, host, () => {
+  console.log(`Folk. backend listening on http://${host}:${port}`);
+  console.log(`Frontend static serving: ${serveFrontend ? 'enabled' : 'disabled'}`);
   console.log(`SQLite database: ${dbPath}`);
 });

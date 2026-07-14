@@ -22,7 +22,7 @@ Starta Vite i en annan terminal:
 npm run dev
 ```
 
-Öppna sedan adressen som visas i Vite-terminalen. Backend kör normalt på `http://localhost:8020` och databasen skapas i `data/folk.db`.
+Öppna sedan adressen som visas i Vite-terminalen. Frontend kör normalt på `http://localhost:5173`. Backend/API kör lokalt på `http://localhost:8020` och databasen skapas i `data/folk.db`. I systemd/dev-läget serverar backend inte frontend-HTML, så appen ska öppnas via frontendporten `5173`.
 
 ## Ingår i prototypen
 

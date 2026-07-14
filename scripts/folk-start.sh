@@ -44,5 +44,5 @@ start_service() {
   echo "$name started (pid $(cat "$pid_file"), log $log_file)"
 }
 
-start_service backend http://localhost:8020/api/state "$NPM_BIN" run server
+start_service backend http://localhost:8020/api/state env HOST=127.0.0.1 SERVE_FRONTEND=false "$NPM_BIN" run server
 start_service frontend http://localhost:5173 "$NPM_BIN" run dev -- --host 0.0.0.0
