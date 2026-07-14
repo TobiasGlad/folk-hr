@@ -42,6 +42,14 @@ const documentStatusFields = [
   { key: 'hasRegisterExtract', label: 'Registerutdrag', kind: 'Registerutdrag' },
   { key: 'hasOtherDocuments', label: 'Övriga dokument', kind: 'Övrigt' },
 ];
+const employeeDocumentCategories = [
+  { id: 'cv', kind: 'CV', title: 'CV', description: 'Uppladdat CV för medarbetaren.', labelTitle: 'Filtitel', placeholder: 'Exempel: CV 2026', uploadLabel: 'Ladda upp CV', emptyLabel: 'CV', required: true },
+  { id: 'agreement', kind: 'Anställningsavtal', title: 'Anställningsavtal', description: 'Avtal och signerade anställningshandlingar.', labelTitle: 'Filtitel', placeholder: 'Exempel: Signerat avtal', uploadLabel: 'Ladda upp avtal', emptyLabel: 'Anställningsavtal', required: true },
+  { id: 'register', kind: 'Registerutdrag', title: 'Registerutdrag', description: 'Registerutdrag och kontrollunderlag.', labelTitle: 'Filtitel', placeholder: 'Exempel: Utdrag 2026', uploadLabel: 'Ladda upp utdrag', emptyLabel: 'Registerutdrag', required: true },
+  { id: 'confidentiality', kind: 'Övrigt', matchLabel: 'tystnadsplikt', fixedLabel: 'Tystnadsplikt', title: 'Tystnadsplikt', description: 'Dokument för tystnadsplikt.', labelTitle: 'Filtitel', placeholder: 'Exempel: Signerad tystnadsplikt', uploadLabel: 'Ladda upp tystnadsplikt', emptyLabel: 'Tystnadsplikt', required: true },
+  { id: 'checklist', kind: 'Övrigt', matchLabel: 'checklista', fixedLabel: 'Checklista', title: 'Checklista', description: 'Checklistadokument från rekrytering eller anställning.', labelTitle: 'Filtitel', placeholder: 'Exempel: Checklista signerad', uploadLabel: 'Ladda upp checklista', emptyLabel: 'Checklista', required: true },
+  { id: 'other', kind: 'Övrigt', title: 'Övriga dokument', description: 'Frivilliga dokument som inte hör till någon av de fasta rutorna.', labelTitle: 'Filtitel', placeholder: 'Exempel: Diplom, intyg eller delegation', uploadLabel: 'Ladda upp övrigt', emptyLabel: 'Övrigt dokument', requiresLabel: true },
+];
 const apiStatePath = '/api/state';
 const acceptedDocumentAccept = '.doc,.docx,.pdf,.png,.jpg,.jpeg,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,image/png,image/jpeg';
 const acceptedDocumentExtensions = ['.doc', '.docx', '.pdf', '.png', '.jpg', '.jpeg'];
@@ -1095,10 +1103,23 @@ function documentsByKind(person, kind) {
   return normalizeDocuments(person?.documents || []).filter(document => documentKindMatches(document, kind));
 }
 
-const requiredDocumentKinds = ['CV', 'Anställningsavtal', 'Registerutdrag'];
+function documentLabelMatches(document, needle) {
+  return String(document?.label || document?.name || '').toLocaleLowerCase('sv').includes(needle);
+}
+
+function documentsForCategory(documents, category) {
+  return normalizeDocuments(documents || []).filter(document => {
+    if (category.matchLabel) return documentKindMatches(document, category.kind) && documentLabelMatches(document, category.matchLabel);
+    if (category.kind === 'Övrigt') return documentKindMatches(document, 'Övrigt') && !documentLabelMatches(document, 'tystnadsplikt') && !documentLabelMatches(document, 'checklista');
+    return documentKindMatches(document, category.kind);
+  });
+}
 
 function missingRequiredDocuments(person) {
-  return requiredDocumentKinds.filter(kind => documentsByKind(person, kind).length === 0);
+  const documents = normalizeDocuments(person?.documents || []);
+  return employeeDocumentCategories
+    .filter(category => category.required && documentsForCategory(documents, category).length === 0)
+    .map(category => category.title);
 }
 
 function documentListStatus(person) {
@@ -1359,20 +1380,8 @@ function DocumentCategorySection({ person, setPeople, category, documents, onPre
 function DocumentShelf({ person, setPeople, title, subtitle }) {
   const documents = normalizeDocuments(person.documents || []);
   const [previewDocument, setPreviewDocument] = useState(null);
-  const isLabelMatch = (document, needle) => String(document.label || document.name || '').toLocaleLowerCase('sv').includes(needle);
-  const categoryDocuments = category => documents.filter(document => {
-    if (category.matchLabel) return documentKindMatches(document, category.kind) && isLabelMatch(document, category.matchLabel);
-    if (category.kind === 'Övrigt') return documentKindMatches(document, 'Övrigt') && !isLabelMatch(document, 'tystnadsplikt') && !isLabelMatch(document, 'checklista');
-    return documentKindMatches(document, category.kind);
-  });
-  const categories = [
-    { id: 'cv', kind: 'CV', title: 'CV', description: 'Uppladdat CV för medarbetaren.', labelTitle: 'Filtitel', placeholder: 'Exempel: CV 2026', uploadLabel: 'Ladda upp CV', emptyLabel: 'CV', required: true },
-    { id: 'agreement', kind: 'Anställningsavtal', title: 'Anställningsavtal', description: 'Avtal och signerade anställningshandlingar.', labelTitle: 'Filtitel', placeholder: 'Exempel: Signerat avtal', uploadLabel: 'Ladda upp avtal', emptyLabel: 'Anställningsavtal', required: true },
-    { id: 'register', kind: 'Registerutdrag', title: 'Registerutdrag', description: 'Registerutdrag och kontrollunderlag.', labelTitle: 'Filtitel', placeholder: 'Exempel: Utdrag 2026', uploadLabel: 'Ladda upp utdrag', emptyLabel: 'Registerutdrag', required: true },
-    { id: 'confidentiality', kind: 'Övrigt', matchLabel: 'tystnadsplikt', fixedLabel: 'Tystnadsplikt', title: 'Tystnadsplikt', description: 'Dokument för tystnadsplikt.', labelTitle: 'Filtitel', placeholder: 'Exempel: Signerad tystnadsplikt', uploadLabel: 'Ladda upp tystnadsplikt', emptyLabel: 'Tystnadsplikt', required: true },
-    { id: 'checklist', kind: 'Övrigt', matchLabel: 'checklista', fixedLabel: 'Checklista', title: 'Checklista', description: 'Checklistadokument från rekrytering eller anställning.', labelTitle: 'Filtitel', placeholder: 'Exempel: Checklista signerad', uploadLabel: 'Ladda upp checklista', emptyLabel: 'Checklista', required: true },
-    { id: 'other', kind: 'Övrigt', title: 'Övriga dokument', description: 'Frivilliga dokument som inte hör till någon av de fasta filboxarna.', labelTitle: 'Filtitel', placeholder: 'Exempel: Diplom, intyg eller delegation', uploadLabel: 'Ladda upp övrigt', emptyLabel: 'Övrigt dokument', requiresLabel: true },
-  ];
+  const categoryDocuments = category => documentsForCategory(documents, category);
+  const categories = employeeDocumentCategories;
 
   return <section className="document-section">
     <div className="panel-head document-section-head"><div><h2>{title}</h2>{subtitle ? <p>{subtitle}</p> : null}</div></div>

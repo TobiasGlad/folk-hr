@@ -28,6 +28,7 @@ Det som nyligen gjorts:
 - `Ovriga dokument` ligger sist och ar enda icke-obligatoriska dokumentrutan.
 - Texten `Filbox` ar borttagen och dokumenttitlar visas utan fetstil.
 - Efter 10 minuters passivitet visas en fraga om anvandaren vill fortsatta vara inloggad eller logga ut.
+- Medarbetarlistans dokumentstatus kontrollerar nu alla obligatoriska dokument: CV, anstallningsavtal, registerutdrag, tystnadsplikt och checklista.
 
 ## Starta efter crash eller omstart
 
