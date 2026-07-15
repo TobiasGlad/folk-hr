@@ -461,3 +461,7 @@ a:hover{text-decoration:underline}
 .session-timeout-modal p{margin:0;color:var(--muted);font-size:14px;line-height:1.45}
 .session-timeout-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:8px;flex-wrap:wrap}
 @media(max-width:720px){.session-timeout-modal{padding:20px}.session-timeout-actions{display:grid}.session-timeout-actions .primary,.session-timeout-actions .secondary{width:100%}}
+.recruitment-employment-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;border:1px solid var(--line);border-radius:8px;background:#f8faf9;padding:12px}
+.recruitment-probation-field{align-self:end;min-height:42px;margin:0}
+@media(max-width:1050px){.recruitment-employment-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:720px){.recruitment-employment-grid{grid-template-columns:1fr}}

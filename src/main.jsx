@@ -238,6 +238,13 @@ function normalizeRecruitment(recruitment = {}) {
     checklistDone: Boolean(recruitment.checklistDone),
     referenceComment: recruitment.referenceComment || '',
     assignedUnits: Array.isArray(recruitment.assignedUnits) ? recruitment.assignedUnits : [],
+    employmentDate: recruitment.employmentDate || '',
+    employmentType: recruitment.employmentType || '',
+    rate: recruitment.rate === 0 ? 0 : Number(recruitment.rate || 100),
+    hasProbation: Boolean(recruitment.hasProbation),
+    probationEnd: recruitment.probationEnd || '',
+    noticeDate: recruitment.noticeDate || '',
+    terminationDate: recruitment.terminationDate || '',
     closedAt: recruitment.closedAt || '',
     closedReason: recruitment.closedReason || '',
   };
@@ -732,7 +739,7 @@ function RecruitmentAddForm({ actor, onSave, onClose }) {
     <div className="form-grid"><label>Personnummer<input name="personalNumber" placeholder="ÅÅÅÅMMDD-XXXX" /></label><label>Telefon<input name="phone" placeholder="070-000 00 00" /></label></div>
     <label>Adress<input name="address" placeholder="Gata, postnummer och ort" /></label>
     <div className="form-grid"><label>E-post<input type="email" name="email" placeholder="namn@organisation.se" /></label><label>Utbildning<input name="education" placeholder="Ex. undersköterska" /></label></div>
-    <label>Roll<input name="role" placeholder="Ex. Stödassistent" /></label>
+    <div className="form-grid"><label>Roll<input name="role" placeholder="Ex. Stödassistent" /></label><label>Tjänstgöringsgrad<input name="rate" type="number" min="0" max="100" defaultValue="100" /></label></div>
     <section className="inline-document-upload recruitment-initial-cv">
       <div className="panel-head"><div><h2>CV</h2><p>Ladda upp CV direkt när rekryteringen skapas.</p></div>{cvDocument ? <span className="doc-status ok">Finns</span> : <span className="doc-status required">Måste ordnas</span>}</div>
       {cvDocument ? <div className="document-row compact"><div className="document-row-main"><strong>{cvDocument.name}</strong><span>CV</span></div><div className="document-row-actions"><button type="button" className="secondary small" onClick={() => setPreviewDocument(cvDocument)}><FileText size={15}/>Visa</button><button type="button" className="secondary small danger danger-compact" onClick={() => setCvDocument(null)}><Trash2 size={14}/>Ta bort</button></div></div> : <div className="document-empty-row required">Inget CV uppladdat ännu.</div>}
@@ -798,6 +805,13 @@ function RecruitmentCandidatePanel({ candidate, groups, groupTypes, setPeople, a
   const hasConfidentiality = normalizeDocuments(candidate.documents || []).some(document => String(document.label || document.name || '').toLocaleLowerCase('sv').includes('tystnadsplikt'));
   const interviewReady = hasCv && hasRegisterExtract && hasConfidentiality;
   const hasAgreement = documentsByKind(candidate, 'Anställningsavtal').length > 0;
+  const employmentDateValue = recruitment.employmentDate || candidate.employmentDate || candidate.start || new Date().toISOString().slice(0, 10);
+  const employmentTypeValue = recruitment.employmentType || candidate.employmentType || '';
+  const rateValue = recruitment.rate === 0 ? 0 : Number(recruitment.rate || candidate.rate || 100);
+  const hasProbationValue = Boolean(recruitment.hasProbation || candidate.hasProbation || employmentTypeValue.toLocaleLowerCase('sv').includes('prov'));
+  const probationEndValue = recruitment.probationEnd || candidate.probationEnd || '';
+  const noticeDateValue = recruitment.noticeDate || candidate.noticeDate || '';
+  const terminationDateValue = recruitment.terminationDate || candidate.terminationDate || '';
   const interviewDocuments = normalizeDocuments(candidate.documents || []).filter(document => documentKindMatches(document, 'CV') || documentKindMatches(document, 'Registerutdrag') || String(document.label || document.name || '').toLocaleLowerCase('sv').includes('tystnadsplikt'));
   const agreementDocuments = documentsByKind(candidate, 'Anställningsavtal');
   const checklistDocuments = normalizeDocuments(candidate.documents || []).filter(document => String(document.label || document.kind || document.name || '').toLocaleLowerCase('sv').includes('checklista'));
@@ -883,12 +897,12 @@ function RecruitmentCandidatePanel({ candidate, groups, groupTypes, setPeople, a
   };
   const previousStep = currentStepIndex > 0 ? recruitmentStepOrder[currentStepIndex - 1] : '';
   const backButton = previousStep ? <button type="button" className="secondary" onClick={() => goToStep(previousStep)}>Tillbaka till {recruitmentStepLabels[previousStep]}</button> : null;
-  const approvalReady = hasCv && hasRegisterExtract && hasAgreement && recruitment.checklistDone && trialPasses.length >= 2 && selectedUnits.length > 0 && Boolean(recruitment.referenceComment.trim());
+  const approvalReady = hasCv && hasRegisterExtract && hasAgreement && recruitment.checklistDone && trialPasses.length >= 2 && selectedUnits.length > 0 && Boolean(recruitment.referenceComment.trim()) && Boolean(employmentDateValue);
   const hireCandidate = () => {
     const units = selectedUnits.length ? selectedUnits : (trialUnit ? [trialUnit] : []);
     if (!units.length) return;
     const now = new Date().toISOString();
-    const employmentDate = now.slice(0, 10);
+    const employmentDate = employmentDateValue || now.slice(0, 10);
     const primaryUnit = units[0];
     const categories = groupCategoriesFor(groups, primaryUnit, groupTypes);
     setPeople(prev => prev.map(person => {
@@ -903,12 +917,31 @@ function RecruitmentCandidatePanel({ candidate, groups, groupTypes, setPeople, a
         assignedUnits: units,
         employmentDate,
         start: employmentDate,
+        employmentType: employmentTypeValue,
+        rate: rateValue,
+        hasProbation: hasProbationValue,
+        probationEnd: hasProbationValue ? probationEndValue : '',
+        noticeDate: noticeDateValue,
+        terminationDate: terminationDateValue,
         profileCreatedAt: now,
         profileCreatedBy: actor,
         hiredAt: now,
         hiredBy: actor,
         notes: referenceNote ? [...(person.notes || []), referenceNote] : (person.notes || []),
-        recruitment: normalizeRecruitment({ ...(person.recruitment || {}), checklistDone: true, assignedUnits: units, closedAt: now, closedReason: 'Anställd' }),
+        recruitment: normalizeRecruitment({
+          ...(person.recruitment || {}),
+          checklistDone: true,
+          assignedUnits: units,
+          employmentDate,
+          employmentType: employmentTypeValue,
+          rate: rateValue,
+          hasProbation: hasProbationValue,
+          probationEnd: hasProbationValue ? probationEndValue : '',
+          noticeDate: noticeDateValue,
+          terminationDate: terminationDateValue,
+          closedAt: now,
+          closedReason: 'Anställd',
+        }),
       });
     }));
   };
@@ -952,13 +985,22 @@ function RecruitmentCandidatePanel({ candidate, groups, groupTypes, setPeople, a
           <div><strong>Enheter</strong><span>{selectedUnits.length ? selectedUnits.join(', ') : 'Inga enheter valda'}</span></div>
         </div>
         <div className="group-multi-filter"><span>Enheter personen ska tillhöra</span><div>{groupNames.map(name => <label key={name}><input type="checkbox" checked={selectedUnits.includes(name)} onChange={() => toggleUnit(name)} />{name}</label>)}</div></div>
+        <div className="recruitment-employment-grid">
+          <label className="step-field"><span>Anställningsstart</span><input type="date" value={employmentDateValue} onChange={e => updateRecruitment({ employmentDate: e.target.value })} /></label>
+          <label className="step-field"><span>Anställningstyp</span><input value={employmentTypeValue} onChange={e => updateRecruitment({ employmentType: e.target.value })} placeholder="Ex. tillsvidare eller provanställning" /></label>
+          <label className="step-field"><span>Tjänstgöringsgrad</span><input type="number" min="0" max="100" value={rateValue} onChange={e => updateRecruitment({ rate: Number(e.target.value) })} /></label>
+          <label className="check-confirm recruitment-probation-field"><input type="checkbox" checked={hasProbationValue} onChange={e => updateRecruitment({ hasProbation: e.target.checked, probationEnd: e.target.checked ? probationEndValue : '' })} /><span>Provanställning</span></label>
+          {hasProbationValue ? <label className="step-field"><span>Provanställning slut</span><input type="date" value={probationEndValue} onChange={e => updateRecruitment({ probationEnd: e.target.value })} /></label> : null}
+          <label className="step-field"><span>Uppsägning inlämnad</span><input type="date" value={noticeDateValue} onChange={e => updateRecruitment({ noticeDate: e.target.value })} /></label>
+          <label className="step-field"><span>Sista anställningsdag</span><input type="date" value={terminationDateValue} onChange={e => updateRecruitment({ terminationDate: e.target.value })} /></label>
+        </div>
         <label className="check-confirm"><input type="checkbox" checked={recruitment.checklistDone} onChange={e => updateRecruitment({ checklistDone: e.target.checked })} /><span>Checklista klar</span></label>
         <div className="recruitment-upload-grid"><RecruitmentUploadButton label="Ladda upp checklista" kind="Övrigt" documentLabel="Checklista" candidate={candidate} setPeople={setPeople} /></div>
         <RecruitmentDocumentList documents={checklistDocuments} emptyText="Ingen checklista uppladdad" onPreview={setPreviewDocument} onRemove={removeRecruitmentDocument} />
         <label className="step-field"><span>Kommentar om referenstagning</span><textarea value={recruitment.referenceComment} onChange={e => updateRecruitment({ referenceComment: e.target.value })} placeholder="Ex. referenser tagna och tillfrågade, datum och kort notering" /></label>
         <div className="recruitment-upload-grid"><RecruitmentUploadButton label="Ladda upp övrig fil (frivilligt)" kind="Övrigt" documentLabel="Övrigt" candidate={candidate} setPeople={setPeople} /></div>
         <RecruitmentDocumentList documents={otherApprovalDocuments} emptyText="Inga övriga dokument, frivilligt" onPreview={setPreviewDocument} onRemove={removeRecruitmentDocument} />
-        <div className="step-card-actions"><span>{approvalReady ? 'Alla krav är klara för godkännande. Övriga filer är frivilliga.' : 'CV, registerutdrag, avtal, checklista, minst två provpass, minst en enhet och kommentar om referenstagning krävs innan anställning. Övriga filer är frivilliga.'}</span><div className="step-action-buttons">{backButton}<button type="button" className="primary" disabled={!approvalReady} onClick={hireCandidate}>Flytta till Medarbetare</button></div></div>
+        <div className="step-card-actions"><span>{approvalReady ? 'Alla krav är klara för godkännande. Övriga filer är frivilliga.' : 'CV, registerutdrag, avtal, checklista, minst två provpass, minst en enhet, anställningsstart och kommentar om referenstagning krävs innan överföring. Övriga filer är frivilliga.'}</span><div className="step-action-buttons">{backButton}<button type="button" className="primary" disabled={!approvalReady} onClick={hireCandidate}>Flytta till Medarbetare</button></div></div>
       </div>
     </div> : null}
     <DocumentPreviewModal document={previewDocument} onClose={() => setPreviewDocument(null)} />
